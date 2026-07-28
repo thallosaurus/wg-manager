@@ -114,6 +114,7 @@ const INTERFACE_AND_USER_KEYS_QUERY = `
         i.pubkey,
         i.netmask,
         i.broadcast,
+        i.mtu,
         json_group_array(
             json_object(
                 'id', u.id,
@@ -138,6 +139,7 @@ const INTERFACE_AND_USER_NON_KEYS_QUERY = `
                     i.listenport,
                     i.netmask,
                     i.broadcast,
+                    i.mtu,
                     json_group_array(
                         json_object(
                             'id', u.id,
@@ -169,6 +171,7 @@ export const getInterfaceAndUserByInterfaceId = (db: Database, id: number, fetch
             netaddress: r.netaddress >>> 0,
             broadcast: r.broadcast >>> 0,
             port: r.listenport,
+            mtu: r.mtu,
             users: r.users.map((v, i) => {
                 return {
                     id: v.id,
@@ -196,6 +199,7 @@ export const getInterfaceAndUserByInterfaceId = (db: Database, id: number, fetch
             address: r.address >>> 0,
             netaddress: r.netaddress >>> 0,
             broadcast: r.broadcast >>> 0,
+            mtu: r.mtu,
             port: r.listenport,
             users: r.users.map((v, i) => {
                 return {
@@ -287,7 +291,7 @@ export const InterfaceApi = (db: Database) => {
         }
     })
 
-    app.route("/:id", UsersApi(db))
+    app.route("/:id/users", UsersApi(db))
 
     return app;
 }

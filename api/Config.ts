@@ -13,7 +13,7 @@ export const collectExportData = (db: Database) => {
         })
 }
 
-const writeOutExport = (d: any) => {
+const writeOutWireguardConfig = (d: any) => {
     console.log(d);
     const wireguard_config = `[Interface]
 Address = ${new IPv4(d.address).toString()}/${d.netmask}
@@ -38,12 +38,28 @@ AllowedIPs = ${new IPv4(v.address).toString()}
     return wireguard_config
 }
 
+export const writeOutWireguardClientConfig = (d: any) => {
+    return `[Interface]
+Address = ${new IPv4(d.ip).toString()}/32
+ListenPort = 54654
+PrivateKey = ${d.clientPrivkey}
+MTU = 1420
+DNS = dns address
+
+[Peer]
+PublicKey = ${d.hostPubkey}
+PresharedKey = ${d.psk}
+AllowedIPs = ${new IPv4(d.ip).toString()}/32
+PresistentKeepalive = 30
+Endpoint = ${d.endpoint}:${d.port}`
+}
+
 export const ConfigRoutes = (db: Database) => {
     const route = new Hono();
 
     route.get("/export", (c) => {
         return c.text(collectExportData(db).map((v) => {
-            return writeOutExport(v);
+            return writeOutWireguardConfig(v);
         }).join(""))
     })
 

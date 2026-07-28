@@ -3,6 +3,7 @@ import { Hono } from "hono";
 import { HTTPException } from "hono/http-exception";
 import { generatePrivkey, generatePsk, generatePubkey } from "../utils.ts";
 import { IPv4 } from "ip-num";
+import { writeOutWireguardClientConfig } from "./Config.ts";
 
 interface UserCreationRequest {
     interfaceId: number,
@@ -11,6 +12,24 @@ interface UserCreationRequest {
     privkey: string,
     psk: string,
     ip: number
+}
+
+const getUserFromInterface = (db: Database, interfaceId: number, userId: number) => {
+    const r = db.prepare(`
+        SELECT allowed_ip, u.privateKey, i.pubkey as hostPubkey, u.publicKey as userPubkey, u.psk, i.endpoint, i.listenport
+        FROM users u
+        LEFT JOIN interfaces i ON u.interface_id = i.id
+        WHERE u.interface_id = ? AND u.id = ?
+    `).get(interfaceId, userId)!
+    return {
+        ip: r.allowed_ip >>> 0,
+        clientPrivkey: r.privateKey.trim(),
+        hostPubkey: r.hostPubkey.trim(),
+        clientPubkey: r.userPubkey.trim(),
+        psk: r.psk.trim(),
+        endpoint: r.endpoint,
+        port: r.listenport
+    }
 }
 
 const createUserCreationRequest = async (interfaceId: number, data: FormData): Promise<UserCreationRequest> => {
@@ -51,6 +70,12 @@ const createFromRequest = (db: Database, req: UserCreationRequest) => {
 
 export const UsersApi = (db: Database) => {
     const router = new Hono();
+    router.get("/:user", (c) => {
+        const interfaceId = parseInt(c.req.param("id")!);
+        const userId = parseInt(c.req.param("user")!);
+        console.log(userId, interfaceId)
+        return c.json(getUserFromInterface(db, interfaceId, userId))
+    })
     router.post("/", async (c) => {
         const interfaceId = parseInt(c.req.param("id")!);
         const formData = await c.req.formData();
@@ -58,15 +83,24 @@ export const UsersApi = (db: Database) => {
         try {
 
             const userId = createFromRequest(db, req);
-            
+
             const redirect = formData.has("redirect") ? ((formData.get("redirect") as string) + interfaceId) : ("api/interface/" + interfaceId)
-            
+
             c.status(201)
             return c.redirect(redirect)
         } catch (e: any) {
             throw new HTTPException(401, { message: e.message })
         }
     })
+
+    router.get("/:user/client", (c) => {
+        const interfaceId = parseInt(c.req.param("id")!);
+        const userId = parseInt(c.req.param("user")!);
+        console.log(userId, interfaceId)
+        const data = getUserFromInterface(db, interfaceId, userId)
+        return c.text(writeOutWireguardClientConfig(data))
+    })
+
 
     router.delete("/:user", (c) => {
         const interfaceId = parseInt(c.req.param("id")!);
