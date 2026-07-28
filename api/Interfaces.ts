@@ -10,7 +10,8 @@ export interface InterfaceCreationRequest {
     address: string,
     endpoint: string,
     mtu: number,
-    privateKey: string
+    privateKey: string,
+    netmask: number
 }
 
 const getMinimalinterfaceList = (db: Database) => {
@@ -20,15 +21,18 @@ const getMinimalinterfaceList = (db: Database) => {
 }
 
 const createFromRequest = (db: Database, req: InterfaceCreationRequest) => {
-    return db.prepare(
-        `INSERT INTO interfaces (name, address, endpoint, privatekey, mtu) VALUES (?, ?, ?, ?);`,
+    db.prepare(
+        `INSERT INTO interfaces (name, address, endpoint, privatekey, mtu, netmask) VALUES (?, ?, ?, ?, ?, ?);`,
     ).run(
         req.name,
         req.address,
         req.endpoint,
         req.privateKey,
-        req.mtu
+        req.mtu,
+        req.netmask
     );
+
+    return db.lastInsertRowId
 }
 
 const createCreationRequest = async (data: FormData): Promise<InterfaceCreationRequest> => {
@@ -39,6 +43,9 @@ const createCreationRequest = async (data: FormData): Promise<InterfaceCreationR
     if (!data.has("endpoint")) throw new HTTPException(401, { message: "missing endpoint" })
     const endpoint = data.get("endpoint")!;
 
+    if (!data.has("netmask")) throw new HTTPException(401, { message: "missing netmask" })
+    const netmask = parseInt(data.get("netmask")! as string);
+
     const mtu = 1420;
     const privateKey = await generatePrivkey();
 
@@ -47,11 +54,12 @@ const createCreationRequest = async (data: FormData): Promise<InterfaceCreationR
         address: address as string,
         endpoint: endpoint as string,
         mtu,
-        privateKey
+        privateKey,
+        netmask
     }
 }
 
-const getInterfaceAndUserByInterfaceId = (db: Database, id: number) => {
+export const getInterfaceAndUserByInterfaceId = (db: Database, id: number) => {
     return db
         .prepare(`
                 SELECT
@@ -66,10 +74,9 @@ const getInterfaceAndUserByInterfaceId = (db: Database, id: number) => {
                     ) FILTER (WHERE u.id IS NOT NULL) AS users
 
                 FROM interfaces i
-                LEFT JOIN interfaces_users iu ON iu.interface_id = i.id
-                LEFT JOIN users u ON u.id = iu.user_id
+                LEFT JOIN users u ON u.interface_id = i.id
                 WHERE i.id = ?
-                GROUP BY i.id
+                GROUP BY i.id;
             `)
         .get(id)
 }
@@ -87,7 +94,11 @@ export const InterfaceApi = (db: Database) => {
         const request = await createCreationRequest(data);
         const id = createFromRequest(db, request);
 
-        return c.json({ id });
+        c.status(201);
+
+        return c.redirect("api/" + id)
+
+        //        return c.json(getInterfaceAndUserByInterfaceId(db, id));
     })
 
     app.get("/:id", (c) => {
