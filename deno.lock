@@ -11,7 +11,8 @@
     "jsr:@std/path@1": "1.0.9",
     "jsr:@std/path@1.0": "1.0.9",
     "jsr:@std/path@^1.1.4": "1.1.4",
-    "npm:hono@*": "4.10.3"
+    "npm:hono@*": "4.10.3",
+    "npm:ip-num@*": "1.6.1"
   },
   "jsr": {
     "@db/sqlite@0.13.0": {
@@ -65,13 +66,18 @@
   "npm": {
     "hono@4.10.3": {
       "integrity": "sha512-2LOYWUbnhdxdL8MNbNg9XZig6k+cZXm5IjHn2Aviv7honhBMOHb+jxrKIeJRZJRmn+htUCKhaicxwXuUDlchRA=="
+    },
+    "ip-num@1.6.1": {
+      "integrity": "sha512-BslnUVM6qE7gDSUPRtY3lqCdtC3sd50KCPHHnmFR2ak3obqW5lL0Izo5n1afUxk5vWWvi/MBuPKkRaZ+3aoSnw==",
+      "scripts": true
     }
   },
   "workspace": {
     "dependencies": [
       "jsr:@db/sqlite@*",
       "jsr:@std/assert@1",
-      "npm:hono@*"
+      "npm:hono@*",
+      "npm:ip-num@*"
     ]
   }
 }

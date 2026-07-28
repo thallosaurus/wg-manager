@@ -18,7 +18,8 @@ export async function generatePrivkey() {
 export async function generatePubkey(privkey: string) {
     const command = new Deno.Command("wg", {
         args: ["pubkey"],
-        stdin: "piped"
+        stdin: "piped",
+        stdout: "piped"
     })
 
     const process = command.spawn();
@@ -28,9 +29,13 @@ export async function generatePubkey(privkey: string) {
     await writer.write(encoder.encode(privkey));
     await writer.close();
 
-    const { stdout } = await command.output();
-    const td = new TextDecoder().decode(stdout);
-    return td;
+    const stdout2 = await new Response(process.stdout).text();
+
+    const status = await process.status;
+    if (!status.success) {
+        throw new Error("wg pubkey failed");
+    }
+    return stdout2.trim()
 }
 
 export async function generatePsk() {
