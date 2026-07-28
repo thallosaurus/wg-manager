@@ -20,6 +20,11 @@ Address = ${new IPv4(d.address).toString()}/${d.netmask}
 ListenPort = ${d.port}
 PrivateKey = ${d.privatekey.trim()}
 MTU = 1420
+Table = off
+PostUp = iptables -A FORWARD -i %i -j ACCEPT
+PostUp = iptables -t nat -A POSTROUTING -o eth0 -j MASQUERADE
+PostDown = iptables -D FORWARD -i %i -j ACCEPT
+PostDown = iptables -t nat -D POSTROUTING -o eth0 -j MASQUERADE
 
 ${d.users.map(v => {
     return `# ${v.name}
