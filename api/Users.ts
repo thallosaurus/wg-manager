@@ -52,11 +52,15 @@ const createFromRequest = (db: Database, req: UserCreationRequest) => {
 
 export const UsersApi = (db: Database) => {
     const router = new Hono();
-    router.post("/", async (c) => {
+    router.post("/", (c) => {
         const interfaceId = parseInt(c.req.param("id")!);
-        const req = await createUserCreationRequest(await c.req.formData())
-        const id = createFromRequest(db, req);
-        assignUserToInterface(db, id, interfaceId);
+        let id;
+        db.transaction(async () => {
+            const req = await createUserCreationRequest(await c.req.formData())
+            id = createFromRequest(db, req);
+            assignUserToInterface(db, id, interfaceId);
+        });
+        
         return c.json({ id })
     })
     return router;
