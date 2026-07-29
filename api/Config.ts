@@ -14,7 +14,6 @@ export const collectExportData = (db: Database) => {
 }
 
 const writeOutWireguardConfig = (d: any) => {
-    console.log(d);
     const wireguard_config = `[Interface]
 Address = ${new IPv4(d.address).toString()}/${d.netmask}
 ListenPort = ${d.port}
@@ -39,6 +38,7 @@ AllowedIPs = ${new IPv4(v.address).toString()}
 }
 
 export const writeOutWireguardClientConfig = (d: any) => {
+    console.log(d);
     return `[Interface]
 Address = ${new IPv4(d.ip).toString()}/32
 ListenPort = 54654
@@ -54,13 +54,25 @@ PresistentKeepalive = 30
 Endpoint = ${d.endpoint}:${d.port}`
 }
 
+function writeToFile(path: string, data: string) {
+    Deno.writeTextFileSync(path, data, { create: true, append: false });
+}
+
 export const ConfigRoutes = (db: Database) => {
     const route = new Hono();
 
     route.get("/export", (c) => {
-        return c.text(collectExportData(db).map((v) => {
-            return writeOutWireguardConfig(v);
-        }).join(""))
+        collectExportData(db).forEach((v) => {
+            const conf = writeOutWireguardConfig(v);
+            writeToFile("/etc/wireguard/"+v.name+".conf", conf) 
+        })
+        //console.log(server_config);
+
+        /*server_config.forEach(v => {
+            console.log(v);
+        });*/
+
+        return c.text("ok")
     })
 
     return route;

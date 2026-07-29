@@ -83,13 +83,15 @@ export const InterfaceView: FC<InterfaceProps> = (props) => {
             <ul>
                 {props.users.map((v, i) => {
                     return <li key={i + "-" + v.id}>
-                        {v.name}: {new IPv4(v.address).toString()}
+                        <span>
+                            {v.name}: {new IPv4(v.address).toString()}
+                            </span><a href={`/api/interface/${props.interfaceId}/users/${v.id}/client`}>Client</a>
                     </li>
                 })}
             </ul>
 
             <h2>Add User</h2>
-            <form action={`/api/interface/${props.interfaceId}`} method="post">
+            <form action={`/api/interface/${props.interfaceId}/users`} method="post">
                 <label for="name">Username:</label>
                 <input type="text" name="name"></input>
                 <label for="ip">Client IP:</label>

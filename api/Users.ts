@@ -101,7 +101,6 @@ export const UsersApi = (db: Database) => {
         return c.text(writeOutWireguardClientConfig(data))
     })
 
-
     router.delete("/:user", (c) => {
         const interfaceId = parseInt(c.req.param("id")!);
         const userId = parseInt(c.req.param("user")!);
