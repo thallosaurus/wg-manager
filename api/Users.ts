@@ -14,21 +14,38 @@ interface UserCreationRequest {
     ip: number
 }
 
-const getUserFromInterface = (db: Database, interfaceId: number, userId: number) => {
-    const r = db.prepare(`
-        SELECT allowed_ip, u.privateKey, i.pubkey as hostPubkey, u.publicKey as userPubkey, u.psk, i.endpoint, i.listenport
+const USER_QUERY_PRIVKEY = `SELECT u.allowed_ip, u.privateKey, i.pubkey as hostPubkey, u.publicKey as userPubkey, u.psk, i.endpoint, i.listenport
         FROM users u
         LEFT JOIN interfaces i ON u.interface_id = i.id
-        WHERE u.interface_id = ? AND u.id = ?
-    `).get(interfaceId, userId)!
-    return {
-        ip: r.allowed_ip >>> 0,
-        clientPrivkey: r.privateKey.trim(),
-        hostPubkey: r.hostPubkey.trim(),
-        clientPubkey: r.userPubkey.trim(),
-        psk: r.psk.trim(),
-        endpoint: r.endpoint,
-        port: r.listenport
+        WHERE u.interface_id = ? AND u.id = ?`
+
+const USER_QUERY = `SELECT u.allowed_ip, u.publicKey as userPubkey, i.endpoint, i.listenport
+        FROM users u
+        LEFT JOIN interfaces i ON u.interface_id = i.id
+        WHERE u.interface_id = ? AND u.id = ?`
+
+const getUserFromInterface = (db: Database, interfaceId: number, userId: number, fetchKeys = false) => {
+    
+    if (fetchKeys) {
+        const r = db.prepare(USER_QUERY_PRIVKEY).get(interfaceId, userId)!
+        return {
+            ip: r.allowed_ip >>> 0,
+            clientPrivkey: r.privateKey.trim(),
+            hostPubkey: r.hostPubkey.trim(),
+            clientPubkey: r.userPubkey.trim(),
+            psk: r.psk.trim(),
+            endpoint: r.endpoint,
+            port: r.listenport
+        }
+    } else {
+        const r = db.prepare(USER_QUERY).get(interfaceId, userId)!
+        return {
+            ip: r.allowed_ip >>> 0,
+            clientPubkey: r.userPubkey.trim(),
+            endpoint: r.endpoint,
+            port: r.listenport
+        }
+
     }
 }
 
@@ -74,7 +91,7 @@ export const UsersApi = (db: Database) => {
         const interfaceId = parseInt(c.req.param("id")!);
         const userId = parseInt(c.req.param("user")!);
         console.log(userId, interfaceId)
-        return c.json(getUserFromInterface(db, interfaceId, userId))
+        return c.json(getUserFromInterface(db, interfaceId, userId, false))
     })
     router.post("/", async (c) => {
         const interfaceId = parseInt(c.req.param("id")!);
@@ -97,7 +114,7 @@ export const UsersApi = (db: Database) => {
         const interfaceId = parseInt(c.req.param("id")!);
         const userId = parseInt(c.req.param("user")!);
         console.log(userId, interfaceId)
-        const data = getUserFromInterface(db, interfaceId, userId)
+        const data = getUserFromInterface(db, interfaceId, userId, true)
         return c.text(writeOutWireguardClientConfig(data))
     })
 
