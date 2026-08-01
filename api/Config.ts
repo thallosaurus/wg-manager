@@ -50,7 +50,7 @@ DNS = dns address
 PublicKey = ${d.hostPubkey}
 PresharedKey = ${d.psk}
 AllowedIPs = ${new IPv4(d.ip).toString()}/32
-PresistentKeepalive = 30
+PersistentKeepalive = 30
 Endpoint = ${d.endpoint}:${d.port}`
 }
 
