@@ -64,7 +64,7 @@ export const ConfigRoutes = (db: Database) => {
     route.get("/export", (c) => {
         collectExportData(db).forEach((v) => {
             const conf = writeOutWireguardConfig(v);
-            writeToFile("/etc/wireguard/"+v.name+".conf", conf) 
+            writeToFile("./output/wireguard/"+v.name+".conf", conf) 
         })
         //console.log(server_config);
 
