@@ -31,7 +31,8 @@ ${d.users.map(v => {
 PublicKey = ${v.pubkey}
 PresharedKey = ${v.psk.trim()}
 AllowedIPs = ${new IPv4(v.address).toString()}`
-})}`
+})}
+`
     return wireguard_config
 }
 
