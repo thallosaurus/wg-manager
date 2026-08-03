@@ -118,3 +118,55 @@ BEGIN
 			RAISE(ABORT, 'network overlaps existing network')
 	END;
 END;
+
+CREATE VIEW IF NOT EXISTS InterfaceConfigs AS
+SELECT
+                    i.id,
+                    i.name,
+                    i.address,
+                    i.netaddress,
+					i.endpoint,
+                    i.listenport,
+                    i.netmask,
+                    i.broadcast,
+                    i.mtu,
+                    json_group_array(
+                        json_object(
+                            'id', u.id,
+                            'name', u.name,
+                            'address', u.allowed_ip
+                        )
+                    ) FILTER (WHERE u.id IS NOT NULL) AS users
+
+                FROM interfaces i
+                LEFT JOIN users u ON u.interface_id = i.id
+                GROUP BY i.id;
+
+
+CREATE VIEW IF NOT EXISTS InterfaceConfigsKeys AS
+SELECT
+        i.id,
+        i.name,
+        i.address,
+        i.netaddress,
+		i.endpoint,
+        i.listenport,
+        i.privatekey,
+        i.pubkey,
+        i.netmask,
+        i.broadcast,
+        i.mtu,
+        json_group_array(
+            json_object(
+                'id', u.id,
+                'name', u.name,
+                'address', u.allowed_ip,
+                'pubkey', u.publicKey,
+                'privkey', u.privateKey,
+                'psk', u.psk
+            )
+        ) FILTER (WHERE u.id IS NOT NULL) AS users
+
+        FROM interfaces i
+        LEFT JOIN users u ON u.interface_id = i.id
+        GROUP BY i.id
