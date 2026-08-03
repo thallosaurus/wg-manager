@@ -4,6 +4,7 @@ import { HTTPException } from "hono/http-exception";
 import { generatePrivkey, generatePsk, generatePubkey } from "../utils.ts";
 import { IPv4 } from "ip-num";
 import { writeOutWireguardClientConfig } from "./Config.ts";
+import { sendMessage } from "../socket.ts";
 
 interface UserCreationRequest {
     interfaceId: number,
@@ -14,7 +15,7 @@ interface UserCreationRequest {
     ip: number
 }
 
-const USER_QUERY_PRIVKEY = `SELECT u.allowed_ip, u.privateKey, i.pubkey as hostPubkey, u.publicKey as userPubkey, u.psk, i.endpoint, i.listenport
+/*const USER_QUERY_PRIVKEY = `SELECT u.allowed_ip, u.privateKey, i.pubkey as hostPubkey, u.publicKey as userPubkey, u.psk, i.endpoint, i.listenport
         FROM users u
         LEFT JOIN interfaces i ON u.interface_id = i.id
         WHERE u.interface_id = ? AND u.id = ?`
@@ -22,9 +23,9 @@ const USER_QUERY_PRIVKEY = `SELECT u.allowed_ip, u.privateKey, i.pubkey as hostP
 const USER_QUERY = `SELECT u.allowed_ip, u.publicKey as userPubkey, i.endpoint, i.listenport
         FROM users u
         LEFT JOIN interfaces i ON u.interface_id = i.id
-        WHERE u.interface_id = ? AND u.id = ?`
+        WHERE u.interface_id = ? AND u.id = ?`*/
 
-const getUserFromInterface = (db: Database, interfaceId: number, userId: number, fetchKeys = false) => {
+/*const getUserFromInterface = (db: Database, interfaceId: number, userId: number, fetchKeys = false) => {
     
     if (fetchKeys) {
         const r = db.prepare(USER_QUERY_PRIVKEY).get(interfaceId, userId)!
@@ -47,7 +48,7 @@ const getUserFromInterface = (db: Database, interfaceId: number, userId: number,
         }
 
     }
-}
+}*/
 
 const createUserCreationRequest = async (interfaceId: number, data: FormData): Promise<UserCreationRequest> => {
     if (!data.has("name")) throw new HTTPException(401, { message: "missing name" })
@@ -85,19 +86,33 @@ const createFromRequest = (db: Database, req: UserCreationRequest) => {
 }
 
 
-export const UsersApi = (db: Database) => {
+export const UsersApi = () => {
     const router = new Hono();
-    router.get("/:user", (c) => {
-        const interfaceId = parseInt(c.req.param("id")!);
-        const userId = parseInt(c.req.param("user")!);
-        console.log(userId, interfaceId)
-        return c.json(getUserFromInterface(db, interfaceId, userId, false))
+    router.get("/:user", async (c) => {
+        const interface_id = parseInt(c.req.param("id")!);
+        const user_id = parseInt(c.req.param("user")!);
+        console.log(user_id, interface_id)
+
+        const data = await sendMessage({
+            type: "query_user",
+            user_id,
+            interface_id
+        })
+        return c.json(data)
     })
     router.post("/", async (c) => {
         const interfaceId = parseInt(c.req.param("id")!);
         const formData = await c.req.formData();
         const req = await createUserCreationRequest(interfaceId, await c.req.formData())
-        try {
+
+        const res = await sendMessage({
+            type: "add_user",
+            "address": new IPv4(req.ip).toString(),
+            "interface_id": interfaceId as unknown as bigint,
+            "username": req.name
+        })
+        console.log(res);
+/*        try {
 
             const userId = createFromRequest(db, req);
 
@@ -107,22 +122,29 @@ export const UsersApi = (db: Database) => {
             return c.redirect(redirect)
         } catch (e: any) {
             throw new HTTPException(401, { message: e.message })
-        }
+        }*/
+       return c.json(res)
     })
 
-    router.get("/:user/client", (c) => {
+    /*router.get("/:user/client", (c) => {
         const interfaceId = parseInt(c.req.param("id")!);
         const userId = parseInt(c.req.param("user")!);
         console.log(userId, interfaceId)
         const data = getUserFromInterface(db, interfaceId, userId, true)
         return c.text(writeOutWireguardClientConfig(data))
-    })
+    })*/
 
-    router.delete("/:user", (c) => {
+    router.delete("/:user", async (c) => {
         const interfaceId = parseInt(c.req.param("id")!);
         const userId = parseInt(c.req.param("user")!);
 
-        return c.json({ userId, interfaceId })
+        const res = await sendMessage({
+            type: "remove_user",
+            "interface_id": interfaceId as unknown as bigint,
+            "user_id": userId as unknown as bigint
+        })
+
+        return c.json(res)
     })
 
     return router;

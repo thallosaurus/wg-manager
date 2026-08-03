@@ -108,8 +108,19 @@ pub enum WgmdMessages {
     #[serde(rename = "query_interface")]
     QueryInterface(QueryInterface),
 
+    #[serde(rename = "query_user")]
+    QueryUser(QueryUser),
+
     #[serde(rename = "export")]
     Export,
+}
+
+#[derive(Serialize, Deserialize, Debug, TS)]
+#[serde(tag = "type")]
+#[ts(export, export_to = "messages.ts")]
+pub struct QueryUser {
+    user_id: i64,
+    interface_id: i64
 }
 
 #[derive(Serialize, Deserialize, Debug, TS)]
@@ -179,6 +190,7 @@ pub fn process_message(m: WgmdMessages, db: &Connection) -> WgmdAnswer {
             }
             WgmdAnswer::Status { status: true }
         }
+        WgmdMessages::QueryUser(query_user) => todo!(),
     }
 }
 

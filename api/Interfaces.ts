@@ -219,12 +219,15 @@ const updateAddress = (db: Database, ifId: number, address: number) => {
         .run(address, ifId)
 }
 
-export const InterfaceApi = (db: Database) => {
+export const InterfaceApi = () => {
     const app = new Hono();
 
-    app.get("/", (c) => {
-        const rows = getMinimalinterfaceList(db);
-        return c.json(rows);
+    app.get("/", async (c) => {
+        //const rows = getMinimalinterfaceList(db);
+        const data = await sendMessage({
+            type: "interfaces"
+        });
+        return c.json(data);
     });
 
     app.post("/", async (c) => {
@@ -318,7 +321,7 @@ export const InterfaceApi = (db: Database) => {
         }
     })
 
-    app.route("/:id/users", UsersApi(db))
+    //app.route("/:id/users", UsersApi(db))
 
     return app;
 }

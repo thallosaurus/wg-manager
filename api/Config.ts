@@ -2,6 +2,7 @@ import { Database } from "@db/sqlite";
 import { Hono } from "hono";
 import { getInterfaceAndUserByInterfaceId } from "./Interfaces.ts";
 import { IPv4 } from "ip-num";
+import { sendMessage } from "../socket.ts";
 
 export const collectExportData = (db: Database) => {
     const interfaces = db
@@ -57,15 +58,18 @@ function writeToFile(path: string, data: string) {
     Deno.writeTextFileSync(path, data, { create: true, append: false });
 }
 
-export const ConfigRoutes = (db: Database) => {
+export const ConfigRoutes = () => {
     const route = new Hono();
 
-    route.get("/export", (c) => {
-        collectExportData(db).forEach((v) => {
+    route.get("/export", async (c) => {
+        /*collectExportData(db).forEach((v) => {
             console.log("export", v)
             const conf = writeOutWireguardConfig(v);
             writeToFile("./output/wireguard/"+v.name+".conf", conf) 
-        })
+        })*/
+       await sendMessage({
+        type: "export"
+       })
 
         //console.log(server_config);
 

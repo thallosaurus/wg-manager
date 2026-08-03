@@ -37,10 +37,10 @@ const e: WgmdMessages = {
     "type": "export"
 };
 
-const r = await sendMessage(e)
+/*const r = await sendMessage(e)
 console.log(r)
 if (r.success) {
     console.log("ok");
 } else {
     console.log("not ok")
-}
+}*/

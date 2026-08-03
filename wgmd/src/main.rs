@@ -28,9 +28,9 @@ fn setup_socket() -> std::io::Result<UnixListener> {
     let _ = std::fs::remove_file(&path);
     let listener = UnixListener::bind(&path)?;
     let _ = std::fs::set_permissions(&path, Permissions::from_mode(0o660)).unwrap();
-    let u = get_user_by_name(&get_current_username().unwrap()).unwrap_or(get_user_by_uid(0).unwrap());
-    let g = get_group_by_name(&get_current_groupname().unwrap()).unwrap_or(get_group_by_gid(0).unwrap());
-    chown(path, Some(u.uid()), Some(g.gid())).unwrap();
+    //let u = get_user_by_name(&get_current_username().unwrap()).unwrap_or(get_user_by_uid(0).unwrap());
+    //let g = get_group_by_name(&get_current_groupname().unwrap()).unwrap_or(get_group_by_gid(0).unwrap());
+    //chown(path, Some(u.uid()), Some(g.gid())).unwrap();
 
     println!("Listening to {}", path);
 
@@ -40,7 +40,7 @@ fn setup_socket() -> std::io::Result<UnixListener> {
 #[tokio::main]
 async fn main() -> std::io::Result<()> {
     let listener = setup_socket()?;    
-    let db = Connection::open("wg_manager_rs.db").unwrap();
+    let db = Connection::open("/var/lib/wgmd/manager.db").unwrap();
     db.execute_batch(DB_QUERY).unwrap();
     let db_ref = Arc::new(Mutex::new(db));
 

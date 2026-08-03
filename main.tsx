@@ -1,6 +1,6 @@
 import { Hono } from 'hono';
 import { InterfaceView, MainView } from "./ui/Main.tsx";
-import { initDatabase } from "./database.ts";
+//import { initDatabase } from "./database.ts";
 import { getInterfaceAndUserByInterfaceId, getMinimalinterfaceList, InterfaceApi } from "./api/Interfaces.ts";
 import { IPv4 } from "ip-num";
 import { ConfigRoutes } from "./api/Config.ts";
@@ -8,19 +8,19 @@ import { Database } from "@db/sqlite";
 import { sendMessage } from "./socket.ts";
 import type { PublicInterfaceConfig, WgmdAnswer } from "./wgmd/main.ts";
 
-const ApiRoute = (db: Database) => {
+const ApiRoute = () => {
   const router = new Hono();
-  router.route("/interface", InterfaceApi(db));
-  router.route("/config", ConfigRoutes(db));
+  router.route("/interface", InterfaceApi());
+  router.route("/config", ConfigRoutes());
   return router;
 }
 
 if (import.meta.main) {
-  const db = initDatabase();
+  //const db = initDatabase();
 
   const app = new Hono();
   app.get("/", (c) => {
-    const interfaces = getMinimalinterfaceList(db);
+    //const interfaces = getMinimalinterfaceList(db);
 
     return c.html(<MainView interfaces={interfaces} />)
   });
