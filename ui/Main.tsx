@@ -70,15 +70,15 @@ export const InterfaceView: FC<InterfaceProps> = ({ def }) => {
             <p>Address: {def.netaddress}/{def.netmask}</p>
             <p>Network Address: {def.netaddress}</p>
             <p>Users</p>
-            {/*<ul>
+            <ul>
                 {def.users.map((v, i) => {
                     return <li key={i + "-" + v.id}>
                         <span>
                             {v.name}: {new IPv4(v.address).toString()}
-                            </span><a href={`/api/interface/${props.interfaceId}/users/${v.id}/client`}>Client</a>
+                            </span><a href={`/api/interface/${def.id}/users/${v.id}/client`}>Client</a>
                     </li>
                 })}
-            </ul> */}
+            </ul>
 
             <h2>Add User</h2>
             <form action={`/api/interface/${def.id}/users`} method="post">
@@ -91,7 +91,7 @@ export const InterfaceView: FC<InterfaceProps> = ({ def }) => {
             </form>
 
             <h2>Actions</h2>
-            <form action={`/api/interface/${props.interfaceId}/delete`} method="post">
+            <form action={`/api/interface/${def.id}/delete`} method="post">
                 <input type="hidden" name="redirect" value="/"></input>
                 <button type="submit">Delete</button>
             </form>

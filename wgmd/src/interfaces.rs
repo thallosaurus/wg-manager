@@ -12,6 +12,16 @@ pub fn wg_make_psk() -> io::Result<Vec<u8>> {
     run_cmd_stdin("wg", &["genpsk"], None)
 }
 
+pub fn wg_quick_up(if_name: &str) -> io::Result<()> {
+    run_cmd_stdin("wg-quick", &["up", if_name], None)?;
+    Ok(())
+}
+
+pub fn wg_quick_down(if_name: &str) -> io::Result<()> {
+    run_cmd_stdin("wg-quick", &["down", if_name], None)?;
+    Ok(())
+}
+
 fn run_cmd_stdin(cmd: &str, args: &[&str], input: Option<&Vec<u8>>) -> io::Result<Vec<u8>> {
     let mut child = Command::new(cmd)
         .args(args)

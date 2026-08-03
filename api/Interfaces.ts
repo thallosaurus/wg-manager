@@ -5,6 +5,7 @@ import { Database } from "@db/sqlite";
 import { UsersApi } from "./Users.ts";
 import { generatePrivkey, generatePubkey } from "../utils.ts";
 import { IPv4, IPv4CidrRange } from "ip-num";
+import { sendMessage } from "../socket.ts";
 
 export interface InterfaceCreationRequest {
     name: string,
@@ -230,38 +231,64 @@ export const InterfaceApi = (db: Database) => {
         const data = await c.req.formData();
         const request = await createCreationRequest(data);
         console.log(request);
-        const id = createFromRequest(db, request);
 
-        const redirect = data.has("redirect") ? ((data.get("redirect") as string) + id) : ("api/" + id)
+        const res = await sendMessage({
+            "type": "add_interface",
+            "address": (new IPv4(request.address)).toString(),
+            "endpoint": request.endpoint,
+            "if_name": request.name,
+            "mtu": request.mtu,
+            "port": request.port,
+            "subnet": request.netmask
+        })
+
+        //        const id = createFromRequest(db, request);
+
+        const redirect = data.has("redirect") ? ((data.get("redirect") as string) + res.id) : ("api/" + id)
 
         c.status(201);
 
         return c.redirect(redirect as string)
     })
 
-    app.get("/:id", (c) => {
+    app.get("/:id", async (c) => {
         const id = parseInt(c.req.param("id"));
-        try {
+        const query = await sendMessage({
+            "type": "query_interface",
+            id: id
+        });
+        console.log(query);
+        return c.json(query.data);
+        /*try {
             const rows = getInterfaceAndUserByInterfaceId(db, id);
             return c.json(rows);
         } catch (e) {
             console.error(e)
             throw new HTTPException(400, { message: "requested id doesnt exist" })
-        }
+        }*/
 
     })
 
-    app.delete("/:id", (c) => {
+    app.delete("/:id", async (c) => {
         const id = parseInt(c.req.param("id"));
-        deleteInterface(db, id);
+        const query = await sendMessage({
+            "type": "remove_interface",
+            id: id
+        });
+
+        //deleteInterface(db, id);
 
         c.status(200);
-        return c;
+        return c.json(query)
     })
 
     app.post("/:id/delete", async (c) => {
         const id = parseInt(c.req.param("id"));
-        deleteInterface(db, id);
+        //deleteInterface(db, id);
+        const query = await sendMessage({
+            "type": "remove_interface",
+            id: id
+        });
 
         const data = await c.req.formData();
 

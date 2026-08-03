@@ -6,7 +6,7 @@ use rusqlite::Connection;
 use serde::{Deserialize, Serialize};
 use ts_rs::TS;
 
-use crate::interfaces::{wg_make_privkey, wg_make_psk, wg_make_pubkey};
+use crate::interfaces::{wg_make_privkey, wg_make_psk, wg_make_pubkey, wg_quick_down, wg_quick_up};
 
 #[derive(Serialize, Deserialize, Debug, TS, Clone)]
 #[ts(export, export_to = "messages.ts")]
@@ -126,6 +126,10 @@ pub enum WgmdAnswer {
     QueryAllInterfaces { data: Vec<PublicInterfaceConfig> },
     #[serde(rename = "query_interface")]
     QuerySingleInterface { data: PublicInterfaceConfig },
+    
+    #[serde(rename = "add_interface")]
+    AddInterfaceId { data: i64 },
+
     #[serde(rename = "status")]
     Status { status: bool },
 }
@@ -138,8 +142,8 @@ pub fn process_message(m: WgmdMessages, db: &Connection) -> WgmdAnswer {
             WgmdAnswer::Status { status: true }
         }
         WgmdMessages::AddInterface(req) => {
-            insert_interface(req, db).unwrap();
-            WgmdAnswer::Status { status: true }
+            let id = insert_interface(req, db).unwrap();
+            WgmdAnswer::AddInterfaceId { data: id }
         }
         WgmdMessages::AddUser(req) => {
             add_user_to_interface(req, db).unwrap();
@@ -168,7 +172,10 @@ pub fn process_message(m: WgmdMessages, db: &Connection) -> WgmdAnswer {
             println!("{:?}", r);
 
             for c in r {
+                let _ = wg_quick_down(&c.if_name);
+
                 fs::write(format!("/etc/wireguard/{}.conf", c.if_name), c.to_wireguard_config().unwrap()).unwrap();
+                wg_quick_up(&c.if_name).unwrap();
             }
             WgmdAnswer::Status { status: true }
         }

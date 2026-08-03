@@ -1,6 +1,6 @@
 import type { WgmdMessages, WgmdAnswer } from "./wgmd/main.ts";
 
-const conn = await Deno.connect({ transport: "unix", path: "/var/folders/kz/0yk0763n6jv3bhqv3h5vgk9h0000gn/T/.tmprtcjTy/wgmd.sock"})
+const conn = await Deno.connect({ transport: "unix", path: "/var/run/wgmd.sock"})
 
 export async function sendMessage(m: WgmdMessages): Promise<WgmdAnswer> {
     const encoder = new TextEncoder();
