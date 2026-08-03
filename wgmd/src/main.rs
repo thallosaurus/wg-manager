@@ -14,7 +14,7 @@ use crate::messages::{WgmdMessages, process_message};
 mod interfaces;
 mod messages;
 
-const DB_QUERY: &str = include_str!("../../database.sql");
+const DB_QUERY: &str = include_str!("../database.sql");
 
 #[tokio::main]
 async fn main() -> std::io::Result<()> {
