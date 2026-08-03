@@ -31,7 +31,8 @@ ${d.users.map(v => {
 PublicKey = ${v.pubkey}
 PresharedKey = ${v.psk.trim()}
 AllowedIPs = ${new IPv4(v.address).toString()}`
-})}`
+})}
+`
     return wireguard_config
 }
 
@@ -61,14 +62,17 @@ export const ConfigRoutes = (db: Database) => {
 
     route.get("/export", (c) => {
         collectExportData(db).forEach((v) => {
+            console.log("export", v)
             const conf = writeOutWireguardConfig(v);
             writeToFile("./output/wireguard/"+v.name+".conf", conf) 
         })
+
         //console.log(server_config);
 
         /*server_config.forEach(v => {
             console.log(v);
         });*/
+
 
         return c.text("ok")
     })
