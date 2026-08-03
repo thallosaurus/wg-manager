@@ -35,7 +35,7 @@ async fn main() -> std::io::Result<()> {
     let listener = UnixListener::bind(&path)?;
 
     //#[cfg(not(debug_assertions))]
-    let _ = std::fs::set_permissions(&path, Permissions::from_mode(0o600)).unwrap();
+    let _ = std::fs::set_permissions(&path, Permissions::from_mode(0o660)).unwrap();
 
     let db = Connection::open("wg_manager_rs.db").unwrap();
     db.execute_batch(DB_QUERY).unwrap();

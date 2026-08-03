@@ -1,6 +1,7 @@
 import { CSSProperties, FC } from "hono/jsx";
 import { MinimalInterfaceConfig } from "../api/Interfaces.ts";
 import { IPv4 } from "ip-num";
+import type { PublicInterfaceConfig } from "../wgmd/main.ts";
 
 const BlockElementsCSS: CSSProperties = {
     display: "block",
@@ -58,40 +59,29 @@ export const MainView: FC<{ interfaces: MinimalInterfaceConfig[] }> = ({ interfa
 }
 
 interface InterfaceProps {
-    interfaceId: number,
-    name: string,
-    address: IPv4,
-    netaddress: IPv4,
-    broadcast: IPv4,
-    netmask: number,
-    users: {
-        id: number,
-        name: string,
-        address: number
-    }[]
+    def: PublicInterfaceConfig
 }
 
-export const InterfaceView: FC<InterfaceProps> = (props) => {
+export const InterfaceView: FC<InterfaceProps> = ({ def }) => {
     return (
         <>
-            <h1>Interface: {props.name}</h1>
+            <h1>Interface: {def.name}</h1>
             <a href="/">Back</a>
-            <p>Address: {props.address.toString()}/{props.netmask}</p>
-            <p>Network Address: {props.netaddress.toString()}</p>
-            <p>Broadcast: {props.broadcast.toString()}</p>
+            <p>Address: {def.netaddress}/{def.netmask}</p>
+            <p>Network Address: {def.netaddress}</p>
             <p>Users</p>
-            <ul>
-                {props.users.map((v, i) => {
+            {/*<ul>
+                {def.users.map((v, i) => {
                     return <li key={i + "-" + v.id}>
                         <span>
                             {v.name}: {new IPv4(v.address).toString()}
                             </span><a href={`/api/interface/${props.interfaceId}/users/${v.id}/client`}>Client</a>
                     </li>
                 })}
-            </ul>
+            </ul> */}
 
             <h2>Add User</h2>
-            <form action={`/api/interface/${props.interfaceId}/users`} method="post">
+            <form action={`/api/interface/${def.id}/users`} method="post">
                 <label for="name">Username:</label>
                 <input type="text" name="name"></input>
                 <label for="ip">Client IP:</label>

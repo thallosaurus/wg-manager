@@ -5,6 +5,8 @@ import { getInterfaceAndUserByInterfaceId, getMinimalinterfaceList, InterfaceApi
 import { IPv4 } from "ip-num";
 import { ConfigRoutes } from "./api/Config.ts";
 import { Database } from "@db/sqlite";
+import { sendMessage } from "./socket.ts";
+import type { PublicInterfaceConfig } from "./wgmd/main.ts";
 
 const ApiRoute = (db: Database) => {
   const router = new Hono();
@@ -23,13 +25,26 @@ if (import.meta.main) {
     return c.html(<MainView interfaces={interfaces} />)
   });
 
-  app.get("/if/:id", (c) => {
+  app.get("/if/:id", async (c) => {
     const id = parseInt(c.req.param("id"))
-    try {
 
-      const data = getInterfaceAndUserByInterfaceId(db, id)!;
-      console.log(data)
-      //const ip = IPv4.fromNumber(BigInt(data.address));
+    const data = await sendMessage({
+      "type": "query_interface",
+      id: id as unknown as bigint
+    })
+
+    console.log(data);
+    if (data.type !== "query_interface") {
+      return c.html(<h1>Error</h1>)
+    } else {
+
+      const d = data as PublicInterfaceConfig;
+      /*try {
+  
+        const data = getInterfaceAndUserByInterfaceId(db, id)!;
+        console.log(data)
+        //const ip = IPv4.fromNumber(BigInt(data.address));
+        */
       return c.html(<InterfaceView
         interfaceId={data.id}
         name={data.name}
@@ -38,11 +53,7 @@ if (import.meta.main) {
         broadcast={new IPv4(data.broadcast)}
         users={data.users}
         netmask={data.netmask} />)
-      } catch (e) {
-        return c.html(<>
-          <h1>Invalid Selection</h1>
-        </>)
-      }
+    }
   })
 
   app.route("/api", ApiRoute(db));
