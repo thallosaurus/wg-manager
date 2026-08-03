@@ -8,35 +8,38 @@ use tokio::{
     net::{UnixListener, UnixStream},
     sync::Mutex,
 };
+use users::{get_current_groupname, get_current_username, get_group_by_gid, get_group_by_name, get_user_by_name, get_user_by_uid};
 
 use crate::messages::{WgmdMessages, process_message};
+use std::os::unix::fs::chown;
 
 mod interfaces;
 mod messages;
 
 const DB_QUERY: &str = include_str!("../database.sql");
 
-#[tokio::main]
-async fn main() -> std::io::Result<()> {
-    let dir = tempfile::tempdir().unwrap();
-//    #[cfg(not(debug_assertions))]
-    let path = "/var/run/wgmd.sock";
+#[cfg(not(debug_assertions))]
+const path: &str = "/var/run/wgmd.sock";
 
-//    #[cfg(debug_assertions)]
-//    let path = dir.path().join("wgmd.sock");
-    println!("Listening to {}", path);
+#[cfg(debug_assertions)]
+const path: &str = "./wgmd.sock";
 
-    //    let privkey = run_cmd_stdin("wg", &["genkey"], None).unwrap();
-    //    let pubkey = run_cmd_stdin("wg", &["pubkey"], Some(&privkey)).unwrap();
-
-    //println!("priv: {:?}\npub: {:?}", String::from_utf8(privkey), String::from_utf8(pubkey));
-
+fn setup_socket() -> std::io::Result<UnixListener> {
     let _ = std::fs::remove_file(&path);
     let listener = UnixListener::bind(&path)?;
-
-    //#[cfg(not(debug_assertions))]
     let _ = std::fs::set_permissions(&path, Permissions::from_mode(0o660)).unwrap();
+    let u = get_user_by_name(&get_current_username().unwrap()).unwrap_or(get_user_by_uid(0).unwrap());
+    let g = get_group_by_name(&get_current_groupname().unwrap()).unwrap_or(get_group_by_gid(0).unwrap());
+    chown(path, Some(u.uid()), Some(g.gid())).unwrap();
 
+    println!("Listening to {}", path);
+
+    Ok(listener)
+}
+
+#[tokio::main]
+async fn main() -> std::io::Result<()> {
+    let listener = setup_socket()?;    
     let db = Connection::open("wg_manager_rs.db").unwrap();
     db.execute_batch(DB_QUERY).unwrap();
     let db_ref = Arc::new(Mutex::new(db));
