@@ -1,7 +1,5 @@
 use std::{
-    eprintln,
-    println,
-    sync::Arc,
+    eprintln, fs::Permissions, os::unix::fs::PermissionsExt, println, sync::Arc,
 };
 
 use rusqlite::Connection;
@@ -21,12 +19,12 @@ const DB_QUERY: &str = include_str!("../../database.sql");
 #[tokio::main]
 async fn main() -> std::io::Result<()> {
     let dir = tempfile::tempdir().unwrap();
-    #[cfg(not(debug_assertions))]
+//    #[cfg(not(debug_assertions))]
     let path = "/var/run/wgmd.sock";
 
-    #[cfg(debug_assertions)]
-    let path = dir.path().join("wgmd.sock");
-    println!("Listening to {}", path.display());
+//    #[cfg(debug_assertions)]
+//    let path = dir.path().join("wgmd.sock");
+    println!("Listening to {}", path);
 
     //    let privkey = run_cmd_stdin("wg", &["genkey"], None).unwrap();
     //    let pubkey = run_cmd_stdin("wg", &["pubkey"], Some(&privkey)).unwrap();
@@ -36,8 +34,8 @@ async fn main() -> std::io::Result<()> {
     let _ = std::fs::remove_file(&path);
     let listener = UnixListener::bind(&path)?;
 
-    #[cfg(not(debug_assertions))]
-    let _ = std::fs::set_permissions(&path, Permissions::from_mode(600)).unwrap();
+    //#[cfg(not(debug_assertions))]
+    let _ = std::fs::set_permissions(&path, Permissions::from_mode(0o600)).unwrap();
 
     let db = Connection::open("wg_manager_rs.db").unwrap();
     db.execute_batch(DB_QUERY).unwrap();

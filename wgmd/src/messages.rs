@@ -1,9 +1,10 @@
 use core::fmt;
-use std::{fmt::Write, format, net::Ipv4Addr, writeln};
+use std::{fmt::Write, format, fs, net::Ipv4Addr, writeln};
 
 use ipnet::Ipv4Net;
 use rusqlite::Connection;
 use serde::{Deserialize, Serialize};
+use serde_json::Value;
 use ts_rs::TS;
 
 use crate::interfaces::{wg_make_privkey, wg_make_psk, wg_make_pubkey};
@@ -12,7 +13,7 @@ use crate::interfaces::{wg_make_privkey, wg_make_psk, wg_make_pubkey};
 #[ts(export, export_to = "messages.ts")]
 pub struct UserConfig {
     name: String,
-    public_key: String,
+    pubkey: String,
     psk: String,
     address: u32,
 }
@@ -24,7 +25,7 @@ impl InterfaceConfig {
         writeln!(c, "[Interface]")?;
         writeln!(c, "Address = {}/{}", self.address, self.subnet)?;
         writeln!(c, "ListenPort = {}", self.port)?;
-        //writeln!(c, "PrivateKey = {}", self.private_key)?;
+        writeln!(c, "PrivateKey = {}", self.private_key)?;
         writeln!(c, "MTU = {}", self.mtu)?;
         writeln!(c, "Table = off")?;
         writeln!(c, "PostUp = iptables -A FORWARD -i %i -j ACCEPT")?;
@@ -41,7 +42,7 @@ impl InterfaceConfig {
         for u in self.users.clone() {
             writeln!(c, "# {}", u.name)?;
             writeln!(c, "[Peer]")?;
-            writeln!(c, "PublicKey = {}", u.public_key)?;
+            writeln!(c, "PublicKey = {}", u.pubkey)?;
             writeln!(c, "PresharedKey = {}", u.psk)?;
             writeln!(c, "AllowedIPs = {}", u.address)?;
             writeln!(c, "")?;
@@ -56,14 +57,13 @@ pub struct InterfaceConfig {
     id: i64,
     if_name: String,
     address: Ipv4Addr,
-    netaddress: Ipv4Addr,
+    //netaddress: Ipv4Addr,
     port: u16,
     subnet: u8,
     mtu: u16,
-    //private_key: String,
-    //public_key: String,
+    private_key: String,
+    public_key: String,
     endpoint: String,
-    //mtu: u16,
     users: Vec<UserConfig>,
 }
 
@@ -146,7 +146,15 @@ pub fn process_message(m: WgmdMessages, db: &Connection) -> WgmdAnswer {
                 WgmdAnswer::Status { status: false }
             }
         }
-        WgmdMessages::Export => WgmdAnswer::Status { status: true },
+        WgmdMessages::Export => {
+            let r = get_all_interfaces_private(db).unwrap();
+            println!("{:?}", r);
+
+            for c in r {
+                fs::write(format!("/etc/wireguard/{}.conf", c.if_name), c.to_wireguard_config().unwrap()).unwrap();
+            }
+            WgmdAnswer::Status { status: true }
+        }
     }
 }
 
@@ -206,15 +214,39 @@ fn insert_interface(conf: AddInterfaceRequest, db: &Connection) -> Result<i64, r
     Ok(db.last_insert_rowid())
 }
 
-fn get_all_interfaces_private(db: &Connection) {
-    
+fn get_all_interfaces_private(db: &Connection) -> Result<Vec<InterfaceConfig>, rusqlite::Error> {
+    let mut stmt =
+        db.prepare("SELECT id, name, address, listenport, netmask, privatekey, pubkey, mtu, endpoint, users FROM InterfaceConfigsKeys")?;
+    let mut rows = stmt.query(())?;
+    let mut result: Vec<InterfaceConfig> = Vec::new();
+
+    while let Some(row) = rows.next()? {
+        let na: i64 = row.get_unwrap("address");
+        let v: String = row.get_unwrap("users");
+        let privkey: String = row.get_unwrap("privatekey");
+        let pubkey: String = row.get_unwrap("pubkey");
+        result.push(InterfaceConfig {
+            id: row.get_unwrap("id"),
+            if_name: row.get_unwrap("name"),
+            address: Ipv4Addr::from(na as u32),
+            port: row.get_unwrap("listenport"),
+            subnet: row.get_unwrap("netmask"),
+            mtu: row.get_unwrap("mtu"),
+            private_key: privkey.trim().to_string(),
+            public_key: pubkey.trim().to_string(),
+            endpoint: row.get_unwrap("endpoint"),
+            users: serde_json::from_str(&v).unwrap(),
+        });
+    }
+
+    Ok(result)
 }
 
 pub fn get_all_interfaces_public(
     db: &Connection,
 ) -> Result<Vec<PublicInterfaceConfig>, rusqlite::Error> {
     let mut stmt =
-        db.prepare("SELECT id, name, address, listenport, netmask FROM InterfaceConfigs")?;
+        db.prepare("SELECT id, name, address, listenport, netmask, endpoint FROM InterfaceConfigs")?;
     let mut rows = stmt.query(())?;
 
     let mut result: Vec<PublicInterfaceConfig> = Vec::new();
@@ -235,13 +267,12 @@ pub fn get_single_interface_public(
     id: i64,
     db: &Connection,
 ) -> Result<Option<PublicInterfaceConfig>, rusqlite::Error> {
-    let mut stmt = db.prepare(
-        "SELECT name, netaddress, listenport, netmask FROM InterfaceConfigs WHERE id = ?",
-    )?;
+    let mut stmt =
+        db.prepare("SELECT name, address, listenport, netmask FROM InterfaceConfigs WHERE id = ?")?;
     let mut rows = stmt.query((id,))?;
     let r = rows.next().unwrap();
     if let Some(row) = r {
-        let na: i64 = row.get_unwrap("netaddress");
+        let na: i64 = row.get_unwrap("address");
         Ok(Some(PublicInterfaceConfig {
             id,
             name: row.get_unwrap("name"),

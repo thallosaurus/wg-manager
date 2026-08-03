@@ -1,6 +1,6 @@
 import { WgmdMessages } from "./wgmd/main.ts";
 
-const conn = await Deno.connect({ transport: "unix", path: "/var/folders/kz/0yk0763n6jv3bhqv3h5vgk9h0000gn/T/.tmplA8bBL/wgmd.sock"})
+const conn = await Deno.connect({ transport: "unix", path: "/var/folders/kz/0yk0763n6jv3bhqv3h5vgk9h0000gn/T/.tmprtcjTy/wgmd.sock"})
 
 export async function sendMessage(m: WgmdMessages): Promise<{
     success: boolean
@@ -35,8 +35,11 @@ const m: WgmdMessages = {
 const q: WgmdMessages = {
     "type": "interfaces"
 };
+const e: WgmdMessages = {
+    "type": "export"
+};
 
-const r = await sendMessage(q)
+const r = await sendMessage(e)
 console.log(r)
 if (r.success) {
     console.log("ok");
