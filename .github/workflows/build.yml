@@ -16,8 +16,9 @@ jobs:
       - name: Install cross
         run: cargo install cross
       - name: Build
+        working-directory: wgmd
         run: cross build --release --target aarch64-unknown-linux-gnu
       - uses: actions/upload-artifact@v4
         with:
           name: wgmd-aarch64
-          path: target/aarch64-unknown-linux-gnu/release/wgmd
+          path: wgmd/target/aarch64-unknown-linux-gnu/release/wgmd
