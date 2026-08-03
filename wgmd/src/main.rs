@@ -1,14 +1,22 @@
 use std::{
-    eprintln, fs::Permissions, os::unix::fs::PermissionsExt, println, sync::Arc,
+    eprintln,
+    fs::{self, Permissions},
+    os::unix::fs::PermissionsExt,
+    println,
+    sync::{Arc, atomic::AtomicBool},
 };
 
 use rusqlite::Connection;
+use tokio::signal::unix::{SignalKind, signal};
 use tokio::{
     io::{AsyncBufReadExt, AsyncWriteExt, BufReader},
     net::{UnixListener, UnixStream},
-    sync::Mutex,
+    sync::{Mutex, oneshot},
 };
-use users::{get_current_groupname, get_current_username, get_group_by_gid, get_group_by_name, get_user_by_name, get_user_by_uid};
+use users::{
+    get_current_groupname, get_current_username, get_group_by_gid, get_group_by_name,
+    get_user_by_name, get_user_by_uid,
+};
 
 use crate::messages::{WgmdMessages, process_message};
 use std::os::unix::fs::chown;
@@ -29,8 +37,8 @@ fn setup_socket() -> std::io::Result<UnixListener> {
     let listener = UnixListener::bind(&path)?;
     let _ = std::fs::set_permissions(&path, Permissions::from_mode(0o660)).unwrap();
     //let u = get_user_by_name(&get_current_username().unwrap()).unwrap_or(get_user_by_uid(0).unwrap());
-    //let g = get_group_by_name(&get_current_groupname().unwrap()).unwrap_or(get_group_by_gid(0).unwrap());
-    //chown(path, Some(u.uid()), Some(g.gid())).unwrap();
+    let g = get_group_by_name("wgmd").unwrap_or(get_group_by_gid(0).unwrap());
+    chown(path, Some(0), Some(g.gid())).unwrap();
 
     println!("Listening to {}", path);
 
@@ -39,20 +47,52 @@ fn setup_socket() -> std::io::Result<UnixListener> {
 
 #[tokio::main]
 async fn main() -> std::io::Result<()> {
-    let listener = setup_socket()?;    
+    let listener = setup_socket()?;
     let db = Connection::open("/var/lib/wgmd/manager.db").unwrap();
     db.execute_batch(DB_QUERY).unwrap();
     let db_ref = Arc::new(Mutex::new(db));
 
+    //let (shutdown_tx, mut shutdown_rx) = oneshot::channel();
+    //let mut shutdown_tx = Some(shutdown_tx);
+
+    let mut sigterm = signal(SignalKind::terminate())?;
+    let mut sigint = signal(SignalKind::interrupt())?;
+
+    /*ctrlc::set_handler(move || {
+        if let Some(tx) = shutdown_tx.take() {
+            tx.send(()).ok();
+        }
+    })
+    .unwrap();*/
+
     loop {
-        let (stream, _) = listener.accept().await?;
-        let db = db_ref.clone();
-        tokio::spawn(async move {
-            if let Err(e) = handle_client(stream, db).await {
-                eprintln!("{e}")
-            }
-        });
+        tokio::select! {
+        result = listener.accept() => {
+            let (stream, _) = result?;
+            let db = db_ref.clone();
+            tokio::spawn(async move {
+                if let Err(e) = handle_client(stream, db).await {
+                    eprintln!("{e}")
+                }
+            });
+        }
+        _ = sigterm.recv() => {
+            break;
+        }
+        _ = sigint.recv() => {
+            break;
+        }
+        /*_ = &mut shutdown_rx => {
+            break;
+            }*/
+        }
     }
+
+    println!("Shutting down...");
+    drop(listener);
+    fs::remove_file(path)?;
+
+    Ok(())
 }
 
 async fn handle_client(stream: UnixStream, db: Arc<Mutex<Connection>>) -> std::io::Result<()> {
