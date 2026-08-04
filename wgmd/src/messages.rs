@@ -12,6 +12,41 @@ use crate::interfaces::{wg_make_privkey, wg_make_psk, wg_make_pubkey, wg_quick_d
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 //#[ts(export, export_to = "messages.ts")]
+pub struct PrivateUserConfig {
+    name: String,
+    pubkey: String,
+    hostPubkey: String,
+    privkey: String,
+    psk: String,
+    address: u32,
+    endpoint: String,
+    listenport: u16
+}
+
+impl PrivateUserConfig {
+    pub fn to_wireguard_config(&self) -> String {
+        let mut c = String::new();
+        writeln!(c, "[Interface]");
+        /*
+        Address = ${new IPv4(d.ip).toString()}/32
+ListenPort = 54654
+PrivateKey = ${d.clientPrivkey}
+MTU = 1420
+DNS = dns address
+
+[Peer]
+PublicKey = ${d.hostPubkey}
+PresharedKey = ${d.psk}
+AllowedIPs = ${new IPv4(d.ip).toString()}/32
+PersistentKeepalive = 30
+Endpoint = ${d.endpoint}:${d.port}`
+         */
+        c
+    }
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+//#[ts(export, export_to = "messages.ts")]
 pub struct UserConfig {
     name: String,
     pubkey: String,
@@ -115,6 +150,16 @@ pub enum WgmdMessages {
 
     #[serde(rename = "export")]
     Export,
+
+    #[serde(rename = "export_client")]
+    ExportClient(ExportClientRequest)
+}
+
+#[derive(Serialize, Deserialize, Debug, TS)]
+#[ts(export, export_to = "messages.ts")]
+struct ExportClientRequest {
+    interface_id: i64,
+    user_id: i64
 }
 
 #[derive(Serialize, Deserialize, Debug, TS)]
@@ -150,6 +195,9 @@ pub enum WgmdAnswer {
 
     #[serde(rename = "status")]
     Status { status: bool },
+    
+    #[serde(rename = "client_cert")]
+    ClientExport { data: String }
 }
 
 #[derive(Serialize, Deserialize, Debug, TS)]
@@ -229,7 +277,11 @@ pub fn process_message(m: WgmdMessages, db: &Connection) -> WgmdAnswer {
             }
             WgmdAnswer::Status { status: true }
         }
-    }
+        WgmdMessages::ExportClient(export_client_request) => {
+            let query = query_user_private(QueryUser { user_id: export_client_request.user_id, interface_id: export_client_request.interface_id }, db).unwrap();
+            WgmdAnswer::ClientExport { data: query.to_wireguard_config() }
+        },
+            }
 }
 
 #[derive(Serialize, Deserialize, Debug, TS)]
@@ -432,12 +484,31 @@ fn remove_user_from_interface(
 }
 
 fn query_user(q: QueryUser, db: &Connection) -> Result<PublicUserConfig, rusqlite::Error> {
-    db.query_one("SELECT u.allowed_ip as address, u.name, u.publicKey as userPubkey, i.endpoint, i.listenport FROM users u LEFT JOIN interfaces i ON u.interface_id = i.id WHERE u.interface_id = ? AND u.id = ?", (q.interface_id, q.user_id), |row| {
+    db.query_one("SELECT u.allowed_ip as address, u.name, u.publicKey as userPubkey, i.endpoint, i.listenport FROM users u LEFT JOIN interfaces i ON u.interface_id = i.id WHERE u.interface_id = ? AND u.id = ?",
+    (q.interface_id, q.user_id), |row| {
         let addr: u32 = row.get_unwrap("address");
         Ok(PublicUserConfig {
             id: q.user_id,
             name: row.get_unwrap("name"),
             address: Ipv4Addr::from(addr),
+        })
+    })
+}
+
+fn query_user_private(q: QueryUser, db: &Connection) -> Result<PrivateUserConfig, rusqlite::Error> {
+    db.query_one("SELECT u.allowed_ip as address, u.privateKey, i.pubkey as hostPubkey, u.publicKey as userPubkey, u.psk, i.endpoint, i.listenport FROM users u LEFT JOIN interfaces i ON u.interface_id = i.id WHERE u.interface_id = ? AND u.id = ?",
+    (q.interface_id, q.user_id), |row| {
+        let addr: u32 = row.get_unwrap("address");
+        Ok(PrivateUserConfig {
+            //id: q.user_id,
+            name: row.get_unwrap("name"),
+            address: addr as u32,
+            pubkey: row.get_unwrap("userPubkey"),
+            hostPubkey: row.get_unwrap("hostPubkey"),
+            psk: row.get_unwrap("psk"),
+            privkey: row.get_unwrap("privatekey"),
+            endpoint: row.get_unwrap("endpoint"),
+            listenport: row.get_unwrap("listenport"),
         })
     })
 }
