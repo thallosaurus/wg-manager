@@ -19,3 +19,4 @@ jobs:
           sudo apt install -y wireguard-tools
       - uses: ./.github/actions/wgmd
       - uses: ./.github/actions/frontend
+      - uses: ./.github/actions/dpkg
