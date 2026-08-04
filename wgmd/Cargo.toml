@@ -11,5 +11,7 @@ serde = { version = "1.0.228", features = ["derive"] }
 serde_json = "1.0.149"
 tempfile = "3.27.0"
 tokio = { version = "1.53.1", features = ["full"] }
+tracing = "0.1.44"
+tracing-subscriber = { version = "0.3.23", features = ["env-filter"] }
 ts-rs = "12.0.1"
 users = "0.11.0"

@@ -1,0 +1,25 @@
+[Unit]
+Description=WireGuard Manager Daemon Frontend
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+ExecStart=/usr/local/bin/wgm
+Restart=on-failure
+RestartSec=5
+
+User=root
+Group=wgmd
+
+#NoNewPrivileges=yes
+#PrivateTmp=yes
+#ProtectSystem=strict
+#ProtectHome=yes
+#ProtectKernelTunables=yes
+#ProtectKernelModules=yes
+#ProtectControlGroups=yes
+#ReadWritePaths=/etc/wireguard /var/lib/wgmd /var/run
+
+[Install]
+WantedBy=multi-user.target

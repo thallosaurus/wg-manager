@@ -4,17 +4,35 @@ use std::{fmt::Write, format, fs, net::Ipv4Addr, writeln};
 use ipnet::Ipv4Net;
 use rusqlite::Connection;
 use serde::{Deserialize, Serialize};
+use serde_json::Value;
+use tracing::debug;
 use ts_rs::TS;
 
 use crate::interfaces::{wg_make_privkey, wg_make_psk, wg_make_pubkey, wg_quick_down, wg_quick_up};
 
-#[derive(Serialize, Deserialize, Debug, TS, Clone)]
-#[ts(export, export_to = "messages.ts")]
+#[derive(Serialize, Deserialize, Debug, Clone)]
+//#[ts(export, export_to = "messages.ts")]
 pub struct UserConfig {
     name: String,
     pubkey: String,
     psk: String,
     address: u32,
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+//#[ts(export, export_to = "messages.ts")]
+pub struct InterfaceConfig {
+    id: i64,
+    if_name: String,
+    address: Ipv4Addr,
+    //netaddress: Ipv4Addr,
+    port: u16,
+    subnet: u8,
+    mtu: u16,
+    private_key: String,
+    public_key: String,
+    endpoint: String,
+    users: Vec<UserConfig>,
 }
 
 impl InterfaceConfig {
@@ -51,31 +69,15 @@ impl InterfaceConfig {
     }
 }
 
-#[derive(Serialize, Deserialize, Debug, TS)]
-#[ts(export, export_to = "messages.ts")]
-pub struct InterfaceConfig {
-    id: i64,
-    if_name: String,
-    address: Ipv4Addr,
-    //netaddress: Ipv4Addr,
-    port: u16,
-    subnet: u8,
-    mtu: u16,
-    private_key: String,
-    public_key: String,
-    endpoint: String,
-    users: Vec<UserConfig>,
-}
-
 #[derive(Debug, Serialize, Deserialize, TS)]
 #[ts(export, export_to = "messages.ts")]
 pub struct PublicUserConfig {
     id: i64,
     name: String,
-    address: Ipv4Addr
+    address: Ipv4Addr,
 }
 
-#[derive(Debug, Serialize, TS)]
+#[derive(Debug, Serialize, Deserialize, TS)]
 #[ts(export, export_to = "messages.ts")]
 pub struct PublicInterfaceConfig {
     id: i64,
@@ -83,7 +85,7 @@ pub struct PublicInterfaceConfig {
     netaddress: Ipv4Addr,
     listenport: u16,
     netmask: u8,
-    users: Vec<PublicUserConfig>
+    users: Vec<PublicUserConfig>,
 }
 
 #[derive(Serialize, Deserialize, Debug, TS)]
@@ -119,33 +121,64 @@ pub enum WgmdMessages {
 #[ts(export, export_to = "messages.ts")]
 pub struct QueryUser {
     user_id: i64,
-    interface_id: i64
+    interface_id: i64,
 }
 
 #[derive(Serialize, Deserialize, Debug, TS)]
 #[ts(export, export_to = "messages.ts")]
 pub struct QueryInterface {
-    id: i64
+    id: i64,
 }
-#[derive(Serialize, Debug, TS)]
+#[derive(Serialize, Deserialize, Debug, TS)]
 #[serde(tag = "type")]
 #[ts(export, export_to = "messages.ts")]
 pub enum WgmdAnswer {
     #[serde(rename = "interfaces")]
-    QueryAllInterfaces { data: Vec<PublicInterfaceConfig> },
-    
+    QueryAllInterfaces(QueryAllInterfacesAnswer),
+
     #[serde(rename = "query_interface")]
-    QuerySingleInterface { data: PublicInterfaceConfig },
-    
+    QuerySingleInterface(QuerySingleInterfaceAnswer),
+
     #[serde(rename = "add_interface")]
-    AddInterfaceId { data: i64 },
+    AddInterfaceId(CreateAnswer),
+
+    #[serde(rename = "add_user")]
+    AddUserId(CreateAnswer),
+
+    #[serde(rename = "query_user")]
+    QuerySingleUser(QuerySingleUserAnswer),
 
     #[serde(rename = "status")]
     Status { status: bool },
 }
 
+#[derive(Serialize, Deserialize, Debug, TS)]
+#[ts(export, export_to = "messages.ts")]
+pub struct CreateAnswer {
+    data: i64
+}
+
+#[derive(Serialize, Deserialize, Debug, TS)]
+#[ts(export, export_to = "messages.ts")]
+pub struct QueryAllInterfacesAnswer {
+    data: Vec<PublicInterfaceConfig>
+}
+
+#[derive(Serialize, Deserialize, Debug, TS)]
+#[ts(export, export_to = "messages.ts")]
+pub struct QuerySingleUserAnswer {
+    data: PublicUserConfig
+}
+
+#[derive(Serialize, Deserialize, Debug, TS)]
+#[ts(export, export_to = "messages.ts")]
+pub struct QuerySingleInterfaceAnswer {
+    data: PublicInterfaceConfig
+}
+
 pub fn process_message(m: WgmdMessages, db: &Connection) -> WgmdAnswer {
-    println!("{:?}", m);
+    debug!("{:?}", m);
+
     match m {
         WgmdMessages::RemoveInterface(req) => {
             delete_interface(req, db).unwrap();
@@ -153,30 +186,32 @@ pub fn process_message(m: WgmdMessages, db: &Connection) -> WgmdAnswer {
         }
         WgmdMessages::AddInterface(req) => {
             let id = insert_interface(req, db).unwrap();
-            println!("{}", id);
-            WgmdAnswer::AddInterfaceId { data: id }
+            WgmdAnswer::AddInterfaceId(CreateAnswer { data: id })
+        }
+        WgmdMessages::QueryAllInterfaces => {
+            let rows = get_all_interfaces_public(db).unwrap();
+            WgmdAnswer::QueryAllInterfaces(QueryAllInterfacesAnswer { data: rows })
+        }
+        WgmdMessages::QueryInterface(id) => {
+            let r = get_single_interface_public(id.id, db).unwrap();
+            //println!("{:?}", r);
+            if let Some(row) = r {
+                WgmdAnswer::QuerySingleInterface(QuerySingleInterfaceAnswer { data: row })
+            } else {
+                WgmdAnswer::Status { status: false }
+            }
         }
         WgmdMessages::AddUser(req) => {
-            add_user_to_interface(req, db).unwrap();
-            WgmdAnswer::Status { status: true }
+            let id = add_user_to_interface(req, db).unwrap();
+            WgmdAnswer::AddUserId(CreateAnswer { data: id })
         }
         WgmdMessages::RemoveUser(req) => {
             remove_user_from_interface(req, db).unwrap();
             WgmdAnswer::Status { status: true }
         }
-        WgmdMessages::QueryAllInterfaces => {
-            let rows = get_all_interfaces_public(db).unwrap();
-            println!("{:?}", rows);
-            WgmdAnswer::QueryAllInterfaces { data: rows }
-        }
-        WgmdMessages::QueryInterface(id) => {
-            let r = get_single_interface_public(id.id, db).unwrap();
-            println!("{:?}", r);
-            if let Some(row) = r {
-                WgmdAnswer::QuerySingleInterface { data: row }
-            } else {
-                WgmdAnswer::Status { status: false }
-            }
+        WgmdMessages::QueryUser(q) => {
+            let data = query_user(q, db).unwrap();
+            WgmdAnswer::QuerySingleUser(QuerySingleUserAnswer { data })
         }
         WgmdMessages::Export => {
             let r = get_all_interfaces_private(db).unwrap();
@@ -185,12 +220,15 @@ pub fn process_message(m: WgmdMessages, db: &Connection) -> WgmdAnswer {
             for c in r {
                 let _ = wg_quick_down(&c.if_name);
 
-                fs::write(format!("/etc/wireguard/{}.conf", c.if_name), c.to_wireguard_config().unwrap()).unwrap();
+                fs::write(
+                    format!("/etc/wireguard/{}.conf", c.if_name),
+                    c.to_wireguard_config().unwrap(),
+                )
+                .unwrap();
                 wg_quick_up(&c.if_name).unwrap();
             }
             WgmdAnswer::Status { status: true }
         }
-        WgmdMessages::QueryUser(query_user) => todo!(),
     }
 }
 
@@ -281,8 +319,9 @@ fn get_all_interfaces_private(db: &Connection) -> Result<Vec<InterfaceConfig>, r
 pub fn get_all_interfaces_public(
     db: &Connection,
 ) -> Result<Vec<PublicInterfaceConfig>, rusqlite::Error> {
-    let mut stmt =
-        db.prepare("SELECT id, name, address, listenport, netmask, endpoint, users FROM InterfaceConfigs")?;
+    let mut stmt = db.prepare(
+        "SELECT id, name, address, listenport, netmask, endpoint, users FROM InterfaceConfigs",
+    )?;
     let mut rows = stmt.query(())?;
 
     let mut result: Vec<PublicInterfaceConfig> = Vec::new();
@@ -291,28 +330,60 @@ pub fn get_all_interfaces_public(
         let na: i64 = row.get_unwrap("address");
         let users: String = row.get_unwrap("users");
 
+        let u: Vec<Value> = serde_json::from_str(&users).unwrap();
+        let u = u
+            .iter()
+            .map(|v| {
+                let id = v.get("id").unwrap().as_i64().unwrap();
+                let name = v.get("name").unwrap().as_str().unwrap();
+                let address = v.get("address").unwrap().as_u64().unwrap() as u32;
+                PublicUserConfig {
+                    id,
+                    name: String::from(name),
+                    address: Ipv4Addr::from(address),
+                }
+            })
+            .collect();
+
         result.push(PublicInterfaceConfig {
             id: row.get_unwrap("id"),
             name: row.get_unwrap("name"),
             netaddress: Ipv4Addr::from(na as u32),
             listenport: row.get_unwrap("listenport"),
             netmask: row.get_unwrap("netmask"),
-            users: serde_json::from_str(&users).unwrap()
+            users: u,
         });
     }
     Ok(result)
 }
+
 pub fn get_single_interface_public(
     id: i64,
     db: &Connection,
 ) -> Result<Option<PublicInterfaceConfig>, rusqlite::Error> {
-    let mut stmt =
-        db.prepare("SELECT name, address, listenport, netmask, users FROM InterfaceConfigs WHERE id = ?")?;
+    let mut stmt = db.prepare(
+        "SELECT name, address, listenport, netmask, users FROM InterfaceConfigs WHERE id = ?",
+    )?;
     let mut rows = stmt.query((id,))?;
     let r = rows.next().unwrap();
     if let Some(row) = r {
         let na: i64 = row.get_unwrap("address");
         let users: String = row.get_unwrap("users");
+
+        let u: Vec<Value> = serde_json::from_str(&users).unwrap();
+        let u = u
+            .iter()
+            .map(|v| {
+                let id = v.get("id").unwrap().as_i64().unwrap();
+                let name = v.get("name").unwrap().as_str().unwrap();
+                let address = v.get("address").unwrap().as_u64().unwrap() as u32;
+                PublicUserConfig {
+                    id,
+                    name: String::from(name),
+                    address: Ipv4Addr::from(address),
+                }
+            })
+            .collect();
 
         Ok(Some(PublicInterfaceConfig {
             id,
@@ -320,7 +391,7 @@ pub fn get_single_interface_public(
             netaddress: Ipv4Addr::from(na as u32),
             listenport: row.get_unwrap("listenport"),
             netmask: row.get_unwrap("netmask"),
-            users: serde_json::from_str(&users).unwrap()
+            users: u,
         }))
     } else {
         Ok(None)
@@ -331,26 +402,6 @@ fn delete_interface(conf: RemoveInterfaceRequest, db: &Connection) -> Result<(),
     db.execute("DELETE FROM interfaces WHERE id = ?", (conf.id,))?;
     Ok(())
 }
-
-/* struct InterfacePrivatekey {
-    interface_id: i64,
-    key: Vec<u8>,
-}
-fn get_interface_private_key(
-    id: i64,
-    db: &Connection,
-) -> Result<InterfacePrivatekey, rusqlite::Error> {
-    Ok(db.query_one(
-        "SELECT privatekey FROM interfaces WHERE id = ?",
-        (id,),
-        |row| {
-            Ok(InterfacePrivatekey {
-                interface_id: id,
-                key: row.get("privatekey").unwrap(),
-            })
-        },
-    )?)
-}*/
 
 fn add_user_to_interface(conf: AddUserRequest, db: &Connection) -> Result<i64, rusqlite::Error> {
     //let if_priv = get_interface_private_key(conf.interface_id, db)?;
@@ -378,4 +429,153 @@ fn remove_user_from_interface(
         (conf.interface_id, conf.user_id),
     )?;
     Ok(())
+}
+
+fn query_user(q: QueryUser, db: &Connection) -> Result<PublicUserConfig, rusqlite::Error> {
+    db.query_one("SELECT u.allowed_ip as address, u.name, u.publicKey as userPubkey, i.endpoint, i.listenport FROM users u LEFT JOIN interfaces i ON u.interface_id = i.id WHERE u.interface_id = ? AND u.id = ?", (q.interface_id, q.user_id), |row| {
+        let addr: u32 = row.get_unwrap("address");
+        Ok(PublicUserConfig {
+            id: q.user_id,
+            name: row.get_unwrap("name"),
+            address: Ipv4Addr::from(addr),
+        })
+    })
+}
+
+#[cfg(test)]
+mod tests {
+    use std::net::Ipv4Addr;
+
+    use crate::messages::{
+        AddInterfaceRequest, AddUserRequest, RemoveInterfaceRequest, add_user_to_interface,
+        delete_interface, get_single_interface_public, insert_interface,
+    };
+    use rusqlite::Connection;
+
+    const DB_QUERY: &str = include_str!("../database.sql");
+
+    fn debug_database() -> Connection {
+        let db = Connection::open(":memory:").unwrap();
+        db.execute_batch(DB_QUERY).unwrap();
+        db
+    }
+
+    #[test]
+    fn test_interface_adding() {
+        let db = debug_database();
+        let id = insert_interface(
+            AddInterfaceRequest {
+                if_name: "test0".to_string(),
+                address: Ipv4Addr::new(172, 16, 0, 1),
+                endpoint: "vpn.example.net".to_string(),
+                mtu: 1420,
+                subnet: 24,
+                port: 12346,
+            },
+            &db,
+        );
+        assert!(id.is_ok());
+
+        //let r = delete_interface(RemoveInterfaceRequest { id: id.unwrap() }, &db);
+        //assert!(r.is_ok());
+    }
+
+    #[test]
+    fn test_interface_query() {
+        let db = debug_database();
+        let id = insert_interface(
+            AddInterfaceRequest {
+                if_name: "test0".to_string(),
+                address: Ipv4Addr::new(172, 16, 0, 1),
+                endpoint: "vpn.example.net".to_string(),
+                mtu: 1420,
+                subnet: 24,
+                port: 12346,
+            },
+            &db,
+        );
+        assert!(id.is_ok());
+        let id = id.unwrap();
+
+        let id2 = insert_interface(
+            AddInterfaceRequest {
+                if_name: "test1".to_string(),
+                address: Ipv4Addr::new(172, 17, 0, 1),
+                endpoint: "vpn.example.net".to_string(),
+                mtu: 1420,
+                subnet: 24,
+                port: 12347,
+            },
+            &db,
+        );
+        assert!(id2.is_ok());
+        let id2 = id2.unwrap();
+
+        let query = get_single_interface_public(id, &db).unwrap();
+        assert!(query.is_some());
+        let query = query.unwrap();
+        assert_eq!(query.id, id);
+        assert_eq!(query.netaddress, Ipv4Addr::new(172, 16, 0, 1));
+
+        let query = get_single_interface_public(id2, &db).unwrap();
+        assert!(query.is_some());
+        let query = query.unwrap();
+        assert_eq!(query.id, id2);
+        assert_eq!(query.netaddress, Ipv4Addr::new(172, 17, 0, 1));
+    }
+
+    #[test]
+    fn test_interface_removal() {
+        let db = debug_database();
+        let id = insert_interface(
+            AddInterfaceRequest {
+                if_name: "test0".to_string(),
+                address: Ipv4Addr::new(172, 16, 0, 1),
+                endpoint: "vpn.example.net".to_string(),
+                mtu: 1420,
+                subnet: 24,
+                port: 12346,
+            },
+            &db,
+        );
+        assert!(id.is_ok());
+
+        let r = delete_interface(RemoveInterfaceRequest { id: id.unwrap() }, &db);
+        assert!(r.is_ok());
+    }
+
+    #[test]
+    fn test_user_adding() {
+        let db = debug_database();
+        let id = insert_interface(
+            AddInterfaceRequest {
+                if_name: "test0".to_string(),
+                address: Ipv4Addr::new(172, 16, 0, 1),
+                endpoint: "vpn.example.net".to_string(),
+                mtu: 1420,
+                subnet: 24,
+                port: 12346,
+            },
+            &db,
+        );
+        assert!(id.is_ok());
+        let id = id.unwrap();
+
+        let user_id = add_user_to_interface(
+            AddUserRequest {
+                interface_id: id,
+                username: "testuser".to_string(),
+                address: Ipv4Addr::new(172, 16, 0, 2),
+            },
+            &db,
+        );
+        assert!(user_id.is_ok());
+
+        let query = get_single_interface_public(id, &db).unwrap();
+        assert!(query.is_some());
+        let query = query.unwrap();
+        assert_eq!(query.users.len(), 1);
+        //assert_eq!(query.id, id);
+        //assert_eq!(query.netaddress, Ipv4Addr::new(172, 16, 0, 1));
+    }
 }

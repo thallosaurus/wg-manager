@@ -1,0 +1,8 @@
+Package: wgm
+Version: 0.1.0
+Section: net
+Priority: optional
+Architecture: arm64
+Maintainer: Lenna Mothburn
+Description: WireGuard management tool
+Depends: wireguard-tools

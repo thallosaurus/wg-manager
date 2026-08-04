@@ -1,0 +1,23 @@
+name: "Build Daemon"
+description: "Build wgmd-aarch64"
+
+runs:
+  using: "composite"
+  steps:
+    #- uses: actions/checkout@v4
+    - uses: dtolnay/rust-toolchain@stable
+    - name: Install cross
+      shell: bash
+      run: cargo install cross
+    - name: Build
+      shell: bash
+      working-directory: wgmd
+      run: cross build --bin wgmd --release --target aarch64-unknown-linux-gnu
+    - name: Build Bindings
+      shell: bash
+      working-directory: wgmd
+      run: cross test export_bindings --target aarch64-unknown-linux-gnu
+    - uses: actions/upload-artifact@v4
+      with:
+        name: wgmd-aarch64
+        path: wgmd/target/aarch64-unknown-linux-gnu/release/wgmd

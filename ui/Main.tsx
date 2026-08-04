@@ -1,5 +1,4 @@
 import { CSSProperties, FC } from "hono/jsx";
-import { MinimalInterfaceConfig } from "../api/Interfaces.ts";
 import { IPv4 } from "ip-num";
 import type { PublicInterfaceConfig } from "../wgmd/main.ts";
 

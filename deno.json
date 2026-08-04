@@ -1,6 +1,6 @@
 {
   "tasks": {
-    "dev": "deno run -A --watch main.tsx"
+    "dev": "deno run -A --watch main.tsx ./wgmd/wgmd.sock"
   },
   "imports": {
     "@std/assert": "jsr:@std/assert@1",

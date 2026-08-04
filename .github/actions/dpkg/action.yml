@@ -1,0 +1,24 @@
+name: "Build APT Package"
+description: "Builds the compiled blobs as an APT Package"
+
+runs:
+  using: "composite"
+  steps:
+    - name: Assemble directory
+      shell: bash
+      run: |
+        mkdir -p apt/usr/local/bin
+        mkdir -p apt/etc/systemd/system
+        cp wgmd/target/aarch64-unknown-linux-gnu/release/wgmd apt/usr/local/bin/wgmd
+        cp wgm apt/usr/local/bin/wgm
+        cp service/wgm.service apt/etc/systemd/system/wgm.service
+        cp service/wgmd.service apt/etc/systemd/system/wgmd.service
+
+    - name: Build DEB
+      shell: bash
+      run: dpkg-deb --build apt wgm.deb
+
+    - uses: actions/upload-artifact@v4
+      with:
+        name: wgm.deb
+        path: wgm.deb

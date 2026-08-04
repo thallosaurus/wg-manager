@@ -1,58 +1,9 @@
-import { Hono } from 'hono';
-import { InterfaceView, MainView } from "./ui/Main.tsx";
-//import { initDatabase } from "./database.ts";
-import { getInterfaceAndUserByInterfaceId, getMinimalinterfaceList, InterfaceApi } from "./api/Interfaces.ts";
-import { IPv4 } from "ip-num";
-import { ConfigRoutes } from "./api/Config.ts";
-import { Database } from "@db/sqlite";
-import { sendMessage } from "./socket.ts";
-import type { PublicInterfaceConfig, WgmdAnswer } from "./wgmd/main.ts";
-
-const ApiRoute = () => {
-  const router = new Hono();
-  router.route("/interface", InterfaceApi());
-  router.route("/config", ConfigRoutes());
-  return router;
-}
+import { request } from "node:http";
+import { Root } from "./api.tsx";
 
 if (import.meta.main) {
-  //const db = initDatabase();
 
-  const app = new Hono();
-  app.get("/", async (c) => {
-    //const interfaces = getMinimalinterfaceList(db);
-
-    const res = await sendMessage({
-      "type": "interfaces"
-    })
-
-    if (res.type !== "interfaces") return;
-
-    return c.html(<MainView interfaces={res.data} />)
-  });
-
-  app.get("/if/:id", async (c) => {
-    const id = parseInt(c.req.param("id"))
-
-    const res = await sendMessage({
-      "type": "query_interface",
-      id: id as unknown as bigint
-    })
-
-    console.log(res);
-    if (res.type !== "query_interface") {
-      return c.html(<h1>Error</h1>)
-    } else {
-      /*try {
-  
-        const data = getInterfaceAndUserByInterfaceId(db, id)!;
-        console.log(data)
-        //const ip = IPv4.fromNumber(BigInt(data.address));
-        */
-      return c.html(<InterfaceView def={res.data} />)
-    }
-  })
-
-  app.route("/api", ApiRoute());
+  const app = Root(Deno.args[0]);
+  //Deno.serve({port: 8080 }, )
   Deno.serve({ port: 8080 }, app.fetch)
 }
