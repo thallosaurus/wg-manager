@@ -7,9 +7,9 @@ import { IPv4 } from "ip-num";
 const SOCKET_PATH = "/var/run/wgmd.sock";
 
 type Env = {
-  Variables: {
-    socket: SocketConnection
-  }
+    Variables: {
+        socket: SocketConnection
+    }
 }
 
 export const ConfigRoutes = () => {
@@ -60,9 +60,9 @@ export const UsersApi = () => {
         console.log(res);
         if (res.type !== "add_user") return c.html(<h1>Error</h1>)
 
-        const redirect = data.has("redirect") ? ((data.get("redirect") as string) + interfaceId) : ("api/interface/" + interfaceId )
+        const redirect = data.has("redirect") ? ((data.get("redirect") as string) + interfaceId) : ("api/interface/" + interfaceId)
 
-       return c.redirect(redirect)
+        return c.redirect(redirect)
     })
 
     /*router.get("/:user/client", (c) => {
@@ -158,7 +158,7 @@ export const InterfaceApi = () => {
     })
 
     app.post("/:id/delete", async (c) => {
-                const socket = c.get("socket");
+        const socket = c.get("socket");
 
         const id = parseInt(c.req.param("id"));
         const query = await socket.removeInterface({ "id": id as unknown as bigint });
@@ -178,26 +178,22 @@ export const InterfaceApi = () => {
 }
 
 const Api = () => {
-  const router = new Hono<Env>();
-  router.route("/interface", InterfaceApi());
-  router.route("/config", ConfigRoutes());
-  return router;
+    const router = new Hono<Env>();
+    router.route("/interface", InterfaceApi());
+    router.route("/config", ConfigRoutes());
+    return router;
 }
 
-export function Root(socket_path?: string) {
-    const root = new Hono<Env>();
-    root.use(async (c, next) => {
-        c.set("socket", await SocketConnection.connect(socket_path ?? SOCKET_PATH));
-        await next();
-    })
-    root.get("/", async (c) => {
+const InbuiltUi = () => {
+    const router = new Hono<Env>();
+    router.get("/", async (c) => {
         const socket = c.get("socket");
         const res = await socket.queryAllInterfaces();
         console.log(res);
         if (res.type !== "interfaces") return c.html(<h1>Error</h1>);
         return c.html(<MainView interfaces={res.data} />)
     })
-    root.get("/if/:id", async (c) => {
+    router.get("/if/:id", async (c) => {
         const socket = c.get("socket");
         const id = parseInt(c.req.param("id"));
         const res = await socket.queryInterface({ id });
@@ -206,6 +202,16 @@ export function Root(socket_path?: string) {
 
         return c.html(<InterfaceView def={res.data} />)
     })
+    return router;
+}
+
+export function Root(socket_path?: string) {
+    const root = new Hono<Env>();
+    root.use(async (c, next) => {
+        c.set("socket", await SocketConnection.connect(socket_path ?? SOCKET_PATH));
+        await next();
+    })
+    root.route("/", InbuiltUi());
     root.route("/api", Api());
     return root;
 }

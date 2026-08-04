@@ -77,7 +77,7 @@ pub struct PublicUserConfig {
     address: Ipv4Addr,
 }
 
-#[derive(Debug, Serialize, TS)]
+#[derive(Debug, Serialize, Deserialize, TS)]
 #[ts(export, export_to = "messages.ts")]
 pub struct PublicInterfaceConfig {
     id: i64,
@@ -129,7 +129,7 @@ pub struct QueryUser {
 pub struct QueryInterface {
     id: i64,
 }
-#[derive(Serialize, Debug, TS)]
+#[derive(Serialize, Deserialize, Debug, TS)]
 #[serde(tag = "type")]
 #[ts(export, export_to = "messages.ts")]
 pub enum WgmdAnswer {
@@ -152,25 +152,25 @@ pub enum WgmdAnswer {
     Status { status: bool },
 }
 
-#[derive(Serialize, Debug, TS)]
+#[derive(Serialize, Deserialize, Debug, TS)]
 #[ts(export, export_to = "messages.ts")]
 pub struct CreateAnswer {
     data: i64
 }
 
-#[derive(Serialize, Debug, TS)]
+#[derive(Serialize, Deserialize, Debug, TS)]
 #[ts(export, export_to = "messages.ts")]
 pub struct QueryAllInterfacesAnswer {
     data: Vec<PublicInterfaceConfig>
 }
 
-#[derive(Serialize, Debug, TS)]
+#[derive(Serialize, Deserialize, Debug, TS)]
 #[ts(export, export_to = "messages.ts")]
 pub struct QuerySingleUserAnswer {
     data: PublicUserConfig
 }
 
-#[derive(Serialize, Debug, TS)]
+#[derive(Serialize, Deserialize, Debug, TS)]
 #[ts(export, export_to = "messages.ts")]
 pub struct QuerySingleInterfaceAnswer {
     data: PublicInterfaceConfig

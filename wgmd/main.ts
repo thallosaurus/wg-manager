@@ -9,7 +9,18 @@ export class SocketConnection {
         return new this(conn)
     }
 
-    constructor(conn: Outgoing) {
+    constructor(conn: Outgoing = {
+        write: async (p) => {
+            const decoder = new TextDecoder();
+            const decoded = decoder.decode(p);
+            console.log(decoded);
+            return decoded.length
+        },
+        read: async (p) => {
+            return 0
+        },
+        
+    }) {
         this.#conn = conn;
     }
 
@@ -48,7 +59,7 @@ export class SocketConnection {
     async #sendMessage(m: WgmdMessages): Promise<WgmdAnswer> {
         const encoder = new TextEncoder();
         const req = JSON.stringify(m);
-        console.log(">", req);
+        console.log(">", m);
         this.#conn.write(encoder.encode(req + "\n"));
 
         const buf = new Uint8Array(1000);
