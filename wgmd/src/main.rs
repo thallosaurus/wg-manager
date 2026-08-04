@@ -52,18 +52,8 @@ async fn main() -> std::io::Result<()> {
     db.execute_batch(DB_QUERY).unwrap();
     let db_ref = Arc::new(Mutex::new(db));
 
-    //let (shutdown_tx, mut shutdown_rx) = oneshot::channel();
-    //let mut shutdown_tx = Some(shutdown_tx);
-
     let mut sigterm = signal(SignalKind::terminate())?;
     let mut sigint = signal(SignalKind::interrupt())?;
-
-    /*ctrlc::set_handler(move || {
-        if let Some(tx) = shutdown_tx.take() {
-            tx.send(()).ok();
-        }
-    })
-    .unwrap();*/
 
     loop {
         tokio::select! {

@@ -28,15 +28,9 @@ impl InterfaceConfig {
         writeln!(c, "MTU = {}", self.mtu)?;
         writeln!(c, "Table = off")?;
         writeln!(c, "PostUp = iptables -A FORWARD -i %i -j ACCEPT")?;
-        writeln!(
-            c,
-            "PostUp = iptables -t nat -A POSTROUTING -o eth0 -j MASQUERADE"
-        )?;
+        writeln!(c, "PostUp = iptables -t nat -A POSTROUTING -o eth0 -j MASQUERADE")?;
         writeln!(c, "PostDown = iptables -D FORWARD -i %i -j ACCEPT")?;
-        writeln!(
-            c,
-            "PostDown = iptables -t nat -D POSTROUTING -o eth0 -j MASQUERADE"
-        )?;
+        writeln!(c, "PostDown = iptables -t nat -D POSTROUTING -o eth0 -j MASQUERADE")?;
 
         for u in self.users.clone() {
             let ip = Ipv4Addr::from(u.address);
@@ -133,12 +127,15 @@ pub struct QueryInterface {
 pub enum WgmdAnswer {
     #[serde(rename = "interfaces")]
     QueryAllInterfaces { data: Vec<PublicInterfaceConfig> },
-    
+
     #[serde(rename = "query_interface")]
     QuerySingleInterface { data: PublicInterfaceConfig },
     
     #[serde(rename = "add_interface")]
     AddInterfaceId { data: i64 },
+
+    #[serde(rename = "query_user")]
+    QuerySingleUser { data: PublicUserConfig },
 
     #[serde(rename = "status")]
     Status { status: bool },
@@ -156,14 +153,6 @@ pub fn process_message(m: WgmdMessages, db: &Connection) -> WgmdAnswer {
             println!("{}", id);
             WgmdAnswer::AddInterfaceId { data: id }
         }
-        WgmdMessages::AddUser(req) => {
-            add_user_to_interface(req, db).unwrap();
-            WgmdAnswer::Status { status: true }
-        }
-        WgmdMessages::RemoveUser(req) => {
-            remove_user_from_interface(req, db).unwrap();
-            WgmdAnswer::Status { status: true }
-        }
         WgmdMessages::QueryAllInterfaces => {
             let rows = get_all_interfaces_public(db).unwrap();
             println!("{:?}", rows);
@@ -178,6 +167,18 @@ pub fn process_message(m: WgmdMessages, db: &Connection) -> WgmdAnswer {
                 WgmdAnswer::Status { status: false }
             }
         }
+        WgmdMessages::AddUser(req) => {
+            add_user_to_interface(req, db).unwrap();
+            WgmdAnswer::Status { status: true }
+        }
+        WgmdMessages::RemoveUser(req) => {
+            remove_user_from_interface(req, db).unwrap();
+            WgmdAnswer::Status { status: true }
+        }
+        WgmdMessages::QueryUser(q) => {
+            let data = query_user(q, db).unwrap();
+            WgmdAnswer::QuerySingleUser { data }
+        },
         WgmdMessages::Export => {
             let r = get_all_interfaces_private(db).unwrap();
             println!("{:?}", r);
@@ -190,7 +191,6 @@ pub fn process_message(m: WgmdMessages, db: &Connection) -> WgmdAnswer {
             }
             WgmdAnswer::Status { status: true }
         }
-        WgmdMessages::QueryUser(query_user) => todo!(),
     }
 }
 
@@ -302,6 +302,7 @@ pub fn get_all_interfaces_public(
     }
     Ok(result)
 }
+
 pub fn get_single_interface_public(
     id: i64,
     db: &Connection,
@@ -332,26 +333,6 @@ fn delete_interface(conf: RemoveInterfaceRequest, db: &Connection) -> Result<(),
     Ok(())
 }
 
-/* struct InterfacePrivatekey {
-    interface_id: i64,
-    key: Vec<u8>,
-}
-fn get_interface_private_key(
-    id: i64,
-    db: &Connection,
-) -> Result<InterfacePrivatekey, rusqlite::Error> {
-    Ok(db.query_one(
-        "SELECT privatekey FROM interfaces WHERE id = ?",
-        (id,),
-        |row| {
-            Ok(InterfacePrivatekey {
-                interface_id: id,
-                key: row.get("privatekey").unwrap(),
-            })
-        },
-    )?)
-}*/
-
 fn add_user_to_interface(conf: AddUserRequest, db: &Connection) -> Result<i64, rusqlite::Error> {
     //let if_priv = get_interface_private_key(conf.interface_id, db)?;
     let client_privkey = wg_make_privkey().unwrap();
@@ -378,4 +359,15 @@ fn remove_user_from_interface(
         (conf.interface_id, conf.user_id),
     )?;
     Ok(())
+}
+
+fn query_user(q: QueryUser, db: &Connection) -> Result<PublicUserConfig, rusqlite::Error> {
+    db.query_one("SELECT u.allowed_ip as address, u.name, u.publicKey as userPubkey, i.endpoint, i.listenport FROM users u LEFT JOIN interfaces i ON u.interface_id = i.id WHERE u.interface_id = ? AND u.id = ?", (q.interface_id, q.user_id), |row| {
+        let addr: u32 = row.get_unwrap("address");
+        Ok(PublicUserConfig {
+            id: q.user_id,
+            name: row.get_unwrap("name"),
+            address: Ipv4Addr::from(addr),
+        })
+    })
 }

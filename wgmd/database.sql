@@ -1,14 +1,14 @@
 CREATE TABLE IF NOT EXISTS "interfaces" (
 	"id"	INTEGER UNIQUE,
-	"name"	TEXT NOT NULL,
+	"name"	TEXT NOT NULL UNIQUE,
 	"address" UNSIGNED INTEGER NOT NULL,
 	"netaddress" UNSIGNED INTEGER NOT NULL,
 	"broadcast" UNSIGNED INTEGER NOT NULL,
-	"netmask" INTEGER CHECK( netmask <= 32 ) NOT NULL,
+	"netmask" INTEGER CHECK( netmask BETWEEN 0 AND 32 ) NOT NULL,
 	"endpoint" TEXT NOT NULL,
-	"listenport" INTEGER NOT NULL,
-	"privatekey" TEXT NOT NULL,
-	"pubkey" TEXT NOT NULL,
+	"listenport" INTEGER CHECK(listenport BETWEEN 1 AND 65535) NOT NULL UNIQUE,
+	"privatekey" TEXT UNIQUE,
+	"pubkey" TEXT UNIQUE,
 	"mtu" INTEGER,
 	PRIMARY KEY("id" AUTOINCREMENT)
 );
@@ -17,10 +17,10 @@ CREATE TABLE IF NOT EXISTS "users" (
 	"id"	INTEGER,
 	"interface_id" INTEGER NOT NULL,
 	"name"	TEXT,
-	"publicKey"	TEXT,
+	"publicKey"	TEXT UNIQUE,
 	"allowed_ip" UNSIGNED INTEGER NOT NULL,
 	"psk"	TEXT,
-	"privateKey"	TEXT,
+	"privateKey" TEXT UNIQUE,
 	PRIMARY KEY("id" AUTOINCREMENT),
 	FOREIGN KEY("interface_id") REFERENCES "interfaces"("id") ON DELETE CASCADE
 );
