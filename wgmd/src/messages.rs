@@ -134,6 +134,9 @@ pub enum WgmdAnswer {
     #[serde(rename = "add_interface")]
     AddInterfaceId { data: i64 },
 
+    #[serde(rename = "add_user")]
+    AddUserId { data: i64 },
+
     #[serde(rename = "query_user")]
     QuerySingleUser { data: PublicUserConfig },
 
@@ -168,8 +171,8 @@ pub fn process_message(m: WgmdMessages, db: &Connection) -> WgmdAnswer {
             }
         }
         WgmdMessages::AddUser(req) => {
-            add_user_to_interface(req, db).unwrap();
-            WgmdAnswer::Status { status: true }
+            let id = add_user_to_interface(req, db).unwrap();
+            WgmdAnswer::AddInterfaceId { data: id }
         }
         WgmdMessages::RemoveUser(req) => {
             remove_user_from_interface(req, db).unwrap();

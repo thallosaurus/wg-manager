@@ -1,5 +1,9 @@
-import type { AddInterfaceRequest, AddUserRequest, RemoveInterfaceRequest, RemoveUserRequest, WgmdAnswer, WgmdMessages } from "./bindings/messages.ts"
+import type { AddInterfaceRequest, AddUserRequest, PublicInterfaceConfig, RemoveInterfaceRequest, RemoveUserRequest, WgmdAnswer, WgmdMessages } from "./bindings/messages.ts"
 export * from "./bindings/messages.ts"
+
+export const IsInterfacesResponse = (req: WgmdAnswer) => {
+    return req.type === "interfaces"
+}
 
 export class SocketConnection {
     #conn: Deno.UnixConn
@@ -14,30 +18,35 @@ export class SocketConnection {
     }
 
     async addInterface(req: AddInterfaceRequest) {
-        await this.#sendMessage({ type: "add_interface", ...req });
+        return await this.#sendMessage({ type: "add_interface", ...req });
     }
 
     async removeInterface(req: RemoveInterfaceRequest) {
-        await this.#sendMessage({ type: "remove_interface", ...req });
+        return await this.#sendMessage({ type: "remove_interface", ...req });
     }
+
+    async queryAllInterfaces() {
+        return await this.#sendMessage({ type: "interfaces" })
+    }
+
     async queryInterface({ id }:{ id: number }) {
-        await this.#sendMessage({ type: "query_interface", id: id as unknown as bigint })
+        return await this.#sendMessage({ type: "query_interface", id: id as unknown as bigint })
     }
     
     async addUser(req: AddUserRequest) {
-        await this.#sendMessage({ type: "add_user", ...req });
+        return await this.#sendMessage({ type: "add_user", ...req });
     }
 
     async removeUser(req: RemoveUserRequest) {
-        await this.#sendMessage({ type: "remove_user", ...req });
+        return await this.#sendMessage({ type: "remove_user", ...req });
     }
 
     async queryUser({id, if_id }: { id: number, if_id: number}) {
-        await this.#sendMessage({ type: "query_user", user_id: id as unknown as bigint, interface_id: if_id as unknown as bigint })
+        return await this.#sendMessage({ type: "query_user", user_id: id as unknown as bigint, interface_id: if_id as unknown as bigint })
     }
 
     async export() {
-        await this.#sendMessage({ type: "export" })
+        return await this.#sendMessage({ type: "export" })
     }
 
     async #sendMessage(m: WgmdMessages): Promise<WgmdAnswer> {
