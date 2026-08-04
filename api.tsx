@@ -4,6 +4,8 @@ import { InterfaceView, MainView } from "./ui/Main.tsx";
 import { HTTPException } from "hono/http-exception";
 import { IPv4 } from "ip-num";
 
+const SOCKET_PATH = "/var/run/wgmd.sock";
+
 type Env = {
   Variables: {
     socket: SocketConnection
@@ -51,14 +53,16 @@ export const UsersApi = () => {
     router.post("/", async (c) => {
         const socket = c.get("socket");
         const interfaceId = parseInt(c.req.param("id")!);
-        const formData = await c.req.formData();
-        const req = await createUserCreationRequest(interfaceId, formData)
+        const data = await c.req.formData();
+        const req = await createUserCreationRequest(interfaceId, data)
         const res = await socket.addUser(req);
 
-        if (res.type !== "add_user") return c.html(<h1>Error</h1>)
         console.log(res);
+        if (res.type !== "add_user") return c.html(<h1>Error</h1>)
 
-       return c.json(res.data);
+        const redirect = data.has("redirect") ? ((data.get("redirect") as string) + interfaceId) : ("api/interface/" + interfaceId )
+
+       return c.redirect(redirect)
     })
 
     /*router.get("/:user/client", (c) => {
@@ -180,15 +184,16 @@ const Api = () => {
   return router;
 }
 
-export function Root() {
+export function Root(socket_path?: string) {
     const root = new Hono<Env>();
     root.use(async (c, next) => {
-        c.set("socket", await SocketConnection.connect());
+        c.set("socket", await SocketConnection.connect(socket_path ?? SOCKET_PATH));
         await next();
     })
     root.get("/", async (c) => {
         const socket = c.get("socket");
         const res = await socket.queryAllInterfaces();
+        console.log(res);
         if (res.type !== "interfaces") return c.html(<h1>Error</h1>);
         return c.html(<MainView interfaces={res.data} />)
     })

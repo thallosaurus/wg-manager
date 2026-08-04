@@ -31,15 +31,23 @@ const DB_QUERY: &str = include_str!("../database.sql");
 #[cfg(not(debug_assertions))]
 const path: &str = "/var/run/wgmd.sock";
 
+#[cfg(not(debug_assertions))]
+const db_path: &str = "/var/lib/wgmd/manager.db";
+
 #[cfg(debug_assertions)]
 const path: &str = "./wgmd.sock";
+
+#[cfg(debug_assertions)]
+const db_path: &str = "./manager.db";
 
 fn setup_socket() -> std::io::Result<UnixListener> {
     let _ = std::fs::remove_file(&path);
     let listener = UnixListener::bind(&path)?;
     let _ = std::fs::set_permissions(&path, Permissions::from_mode(0o660)).unwrap();
     //let u = get_user_by_name(&get_current_username().unwrap()).unwrap_or(get_user_by_uid(0).unwrap());
+    #[cfg(not(debug_assertions))]
     let g = get_group_by_name("wgmd").unwrap_or(get_group_by_gid(0).unwrap());
+    #[cfg(not(debug_assertions))]
     chown(path, Some(0), Some(g.gid())).unwrap();
 
     println!("Listening to {}", path);
@@ -51,7 +59,7 @@ fn setup_socket() -> std::io::Result<UnixListener> {
 async fn main() -> std::io::Result<()> {
     init_tracing();
     let listener = setup_socket()?;
-    let db = Connection::open("/var/lib/wgmd/manager.db").unwrap();
+    let db = Connection::open(db_path).unwrap();
     db.execute_batch(DB_QUERY).unwrap();
     let db_ref = Arc::new(Mutex::new(db));
 

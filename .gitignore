@@ -29,3 +29,4 @@ output/
 target/
 bindings/
 bundle.js
+*.sock

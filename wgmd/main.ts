@@ -1,19 +1,15 @@
 import type { AddInterfaceRequest, AddUserRequest, RemoveInterfaceRequest, RemoveUserRequest, WgmdAnswer, WgmdMessages } from "./bindings/messages.ts"
 export * from "./bindings/messages.ts"
 
-export const IsInterfacesResponse = (req: WgmdAnswer) => {
-    return req.type === "interfaces"
-}
-
 export class SocketConnection {
-    #conn: Deno.UnixConn
+    #conn: Outgoing
 
-    static async connect(path = "/var/run/wgmd.sock"): Promise<SocketConnection> {
-        const conn = await Deno.connect({ transport: "unix", path: "/var/run/wgmd.sock" })
+    static async connect(path: string): Promise<SocketConnection> {
+        const conn = await Deno.connect({ transport: "unix", path })
         return new this(conn)
     }
 
-    constructor(conn: Deno.UnixConn) {
+    constructor(conn: Outgoing) {
         this.#conn = conn;
     }
 
@@ -63,4 +59,9 @@ export class SocketConnection {
         console.log("<", res);
         return res;
     }
+}
+
+interface Outgoing {
+    write(p: Uint8Array): Promise<number>
+    read(p: Uint8Array): Promise<number | null>
 }

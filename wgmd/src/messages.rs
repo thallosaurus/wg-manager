@@ -10,13 +10,29 @@ use ts_rs::TS;
 
 use crate::interfaces::{wg_make_privkey, wg_make_psk, wg_make_pubkey, wg_quick_down, wg_quick_up};
 
-#[derive(Serialize, Deserialize, Debug, TS, Clone)]
-#[ts(export, export_to = "messages.ts")]
+#[derive(Serialize, Deserialize, Debug, Clone)]
+//#[ts(export, export_to = "messages.ts")]
 pub struct UserConfig {
     name: String,
     pubkey: String,
     psk: String,
     address: u32,
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+//#[ts(export, export_to = "messages.ts")]
+pub struct InterfaceConfig {
+    id: i64,
+    if_name: String,
+    address: Ipv4Addr,
+    //netaddress: Ipv4Addr,
+    port: u16,
+    subnet: u8,
+    mtu: u16,
+    private_key: String,
+    public_key: String,
+    endpoint: String,
+    users: Vec<UserConfig>,
 }
 
 impl InterfaceConfig {
@@ -51,22 +67,6 @@ impl InterfaceConfig {
         }
         Ok(c)
     }
-}
-
-#[derive(Serialize, Deserialize, Debug, TS)]
-#[ts(export, export_to = "messages.ts")]
-pub struct InterfaceConfig {
-    id: i64,
-    if_name: String,
-    address: Ipv4Addr,
-    //netaddress: Ipv4Addr,
-    port: u16,
-    subnet: u8,
-    mtu: u16,
-    private_key: String,
-    public_key: String,
-    endpoint: String,
-    users: Vec<UserConfig>,
 }
 
 #[derive(Debug, Serialize, Deserialize, TS)]
@@ -134,22 +134,46 @@ pub struct QueryInterface {
 #[ts(export, export_to = "messages.ts")]
 pub enum WgmdAnswer {
     #[serde(rename = "interfaces")]
-    QueryAllInterfaces { data: Vec<PublicInterfaceConfig> },
+    QueryAllInterfaces(QueryAllInterfacesAnswer),
 
     #[serde(rename = "query_interface")]
-    QuerySingleInterface { data: PublicInterfaceConfig },
+    QuerySingleInterface(QuerySingleInterfaceAnswer),
 
     #[serde(rename = "add_interface")]
-    AddInterfaceId { data: i64 },
+    AddInterfaceId(CreateAnswer),
 
     #[serde(rename = "add_user")]
-    AddUserId { data: i64 },
+    AddUserId(CreateAnswer),
 
     #[serde(rename = "query_user")]
-    QuerySingleUser { data: PublicUserConfig },
+    QuerySingleUser(QuerySingleUserAnswer),
 
     #[serde(rename = "status")]
     Status { status: bool },
+}
+
+#[derive(Serialize, Debug, TS)]
+#[ts(export, export_to = "messages.ts")]
+pub struct CreateAnswer {
+    data: i64
+}
+
+#[derive(Serialize, Debug, TS)]
+#[ts(export, export_to = "messages.ts")]
+pub struct QueryAllInterfacesAnswer {
+    data: Vec<PublicInterfaceConfig>
+}
+
+#[derive(Serialize, Debug, TS)]
+#[ts(export, export_to = "messages.ts")]
+pub struct QuerySingleUserAnswer {
+    data: PublicUserConfig
+}
+
+#[derive(Serialize, Debug, TS)]
+#[ts(export, export_to = "messages.ts")]
+pub struct QuerySingleInterfaceAnswer {
+    data: PublicInterfaceConfig
 }
 
 pub fn process_message(m: WgmdMessages, db: &Connection) -> WgmdAnswer {
@@ -162,26 +186,24 @@ pub fn process_message(m: WgmdMessages, db: &Connection) -> WgmdAnswer {
         }
         WgmdMessages::AddInterface(req) => {
             let id = insert_interface(req, db).unwrap();
-            println!("{}", id);
-            WgmdAnswer::AddInterfaceId { data: id }
+            WgmdAnswer::AddInterfaceId(CreateAnswer { data: id })
         }
         WgmdMessages::QueryAllInterfaces => {
             let rows = get_all_interfaces_public(db).unwrap();
-            println!("{:?}", rows);
-            WgmdAnswer::QueryAllInterfaces { data: rows }
+            WgmdAnswer::QueryAllInterfaces(QueryAllInterfacesAnswer { data: rows })
         }
         WgmdMessages::QueryInterface(id) => {
             let r = get_single_interface_public(id.id, db).unwrap();
             //println!("{:?}", r);
             if let Some(row) = r {
-                WgmdAnswer::QuerySingleInterface { data: row }
+                WgmdAnswer::QuerySingleInterface(QuerySingleInterfaceAnswer { data: row })
             } else {
                 WgmdAnswer::Status { status: false }
             }
         }
         WgmdMessages::AddUser(req) => {
             let id = add_user_to_interface(req, db).unwrap();
-            WgmdAnswer::AddInterfaceId { data: id }
+            WgmdAnswer::AddUserId(CreateAnswer { data: id })
         }
         WgmdMessages::RemoveUser(req) => {
             remove_user_from_interface(req, db).unwrap();
@@ -189,7 +211,7 @@ pub fn process_message(m: WgmdMessages, db: &Connection) -> WgmdAnswer {
         }
         WgmdMessages::QueryUser(q) => {
             let data = query_user(q, db).unwrap();
-            WgmdAnswer::QuerySingleUser { data }
+            WgmdAnswer::QuerySingleUser(QuerySingleUserAnswer { data })
         }
         WgmdMessages::Export => {
             let r = get_all_interfaces_private(db).unwrap();
@@ -432,7 +454,7 @@ mod tests {
 
     const DB_QUERY: &str = include_str!("../database.sql");
 
-    fn debugDatabase() -> Connection {
+    fn debug_database() -> Connection {
         let db = Connection::open(":memory:").unwrap();
         db.execute_batch(DB_QUERY).unwrap();
         db
@@ -440,7 +462,7 @@ mod tests {
 
     #[test]
     fn test_interface_adding() {
-        let db = debugDatabase();
+        let db = debug_database();
         let id = insert_interface(
             AddInterfaceRequest {
                 if_name: "test0".to_string(),
@@ -460,7 +482,7 @@ mod tests {
 
     #[test]
     fn test_interface_query() {
-        let db = debugDatabase();
+        let db = debug_database();
         let id = insert_interface(
             AddInterfaceRequest {
                 if_name: "test0".to_string(),
@@ -504,7 +526,7 @@ mod tests {
 
     #[test]
     fn test_interface_removal() {
-        let db = debugDatabase();
+        let db = debug_database();
         let id = insert_interface(
             AddInterfaceRequest {
                 if_name: "test0".to_string(),
@@ -524,7 +546,7 @@ mod tests {
 
     #[test]
     fn test_user_adding() {
-        let db = debugDatabase();
+        let db = debug_database();
         let id = insert_interface(
             AddInterfaceRequest {
                 if_name: "test0".to_string(),
