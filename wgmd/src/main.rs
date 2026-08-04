@@ -13,6 +13,8 @@ use tokio::{
     net::{UnixListener, UnixStream},
     sync::{Mutex, oneshot},
 };
+use tracing::{debug, error, info};
+use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 use users::{
     get_current_groupname, get_current_username, get_group_by_gid, get_group_by_name,
     get_user_by_name, get_user_by_uid,
@@ -47,6 +49,7 @@ fn setup_socket() -> std::io::Result<UnixListener> {
 
 #[tokio::main]
 async fn main() -> std::io::Result<()> {
+    init_tracing();
     let listener = setup_socket()?;
     let db = Connection::open("/var/lib/wgmd/manager.db").unwrap();
     db.execute_batch(DB_QUERY).unwrap();
@@ -59,10 +62,13 @@ async fn main() -> std::io::Result<()> {
         tokio::select! {
         result = listener.accept() => {
             let (stream, _) = result?;
+            info!("new socket connection");
+
             let db = db_ref.clone();
             tokio::spawn(async move {
                 if let Err(e) = handle_client(stream, db).await {
-                    eprintln!("{e}")
+                    error!("{}", e);
+                    //eprintln!("{e}")
                 }
             });
         }
@@ -78,7 +84,7 @@ async fn main() -> std::io::Result<()> {
         }
     }
 
-    println!("Shutting down...");
+    info!("Shutting down...");
     drop(listener);
     fs::remove_file(path)?;
 
@@ -94,6 +100,7 @@ async fn handle_client(stream: UnixStream, db: Arc<Mutex<Connection>>) -> std::i
     while reader.read_line(&mut line).await? != 0 {
         let l = line.trim();
         //println!("Received: {}", line.trim());
+        //debug!("{}", l);
 
         let json: Result<WgmdMessages, serde_json::Error> = serde_json::from_str(&l);
         line.clear();
@@ -102,17 +109,24 @@ async fn handle_client(stream: UnixStream, db: Arc<Mutex<Connection>>) -> std::i
 
         if let Ok(data) = json {
             let answer = process_message(data, &db);
+            debug!("{:?}", answer);
             let json = serde_json::to_string(&answer).unwrap();
 
             writer.write_all(&json.into_bytes()).await?;
             writer.write_all(b"\n").await?;
         } else {
             let e = json.err().unwrap();
-            eprintln!("{e}");
+            error!("{}", e);
             writer.write_all(br#"{"success":false}"#).await?;
             writer.write_all(b"\n").await?;
         }
     }
 
     Ok(())
+}
+
+fn init_tracing() {
+    tracing_subscriber::registry()
+        .with(tracing_subscriber::fmt::layer())
+        .init();
 }
