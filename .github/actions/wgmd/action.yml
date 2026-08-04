@@ -16,7 +16,7 @@ runs:
     - name: Build Bindings
       shell: bash
       working-directory: wgmd
-      run: cross test --target aarch64-unknown-linux-gnu
+      run: cross test export_bindings --target aarch64-unknown-linux-gnu
     - uses: actions/upload-artifact@v4
       with:
         name: wgmd-aarch64
