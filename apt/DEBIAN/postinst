@@ -6,7 +6,7 @@ if ! getent group wgmd >/dev/null; then
 fi
 
 mkdir -p /var/lib/wgmd
-mkdir -p /run/wgmd
+#mkdir -p /run/wgmd
 
 chown root:wgmd /var/lib/wgmd
 chmod 750 /var/lib/wgmd
