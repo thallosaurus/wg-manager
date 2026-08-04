@@ -1,8 +1,7 @@
 use tokio::{
     io::{self, AsyncBufReadExt, AsyncWriteExt, BufReader},
     net::UnixStream,
-    process::{Child, Command},
-    sync::{Mutex, oneshot},
+    sync::Mutex,
 };
 
 use crate::messages::{
