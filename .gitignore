@@ -28,3 +28,4 @@ dist-ssr
 output/
 target/
 bindings/
+bundle.js

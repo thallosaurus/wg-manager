@@ -1,0 +1,21 @@
+#!/bin/sh
+set -e
+
+if ! getent group wgmd >/dev/null; then
+    groupadd --system wgmd
+fi
+
+mkdir -p /var/lib/wgmd
+mkdir -p /run/wgmd
+
+chown root:wgmd /var/lib/wgmd
+chmod 750 /var/lib/wgmd
+
+systemctl daemon-reload
+systemctl enable wgm.service
+systemctl enable wgmd.service
+
+systemctl restart wgm.service
+systemctl restart wgmd.service
+
+exit 0

@@ -1,11 +1,11 @@
 [Unit]
-Description=WireGuard Manager Daemon Frontend
+Description=WireGuard Manager Daemon
 After=network-online.target
 Wants=network-online.target
 
 [Service]
 Type=simple
-ExecStart=/usr/local/bin/wgm
+ExecStart=/usr/local/bin/wgmd
 Restart=on-failure
 RestartSec=5
 

@@ -1,4 +1,4 @@
-import type { AddInterfaceRequest, AddUserRequest, PublicInterfaceConfig, RemoveInterfaceRequest, RemoveUserRequest, WgmdAnswer, WgmdMessages } from "./bindings/messages.ts"
+import type { AddInterfaceRequest, AddUserRequest, RemoveInterfaceRequest, RemoveUserRequest, WgmdAnswer, WgmdMessages } from "./bindings/messages.ts"
 export * from "./bindings/messages.ts"
 
 export const IsInterfacesResponse = (req: WgmdAnswer) => {
