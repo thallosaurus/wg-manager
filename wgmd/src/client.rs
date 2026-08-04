@@ -1,7 +1,8 @@
 use tokio::{
     io::{self, AsyncBufReadExt, AsyncWriteExt, BufReader},
     net::UnixStream,
-    sync::{Mutex},
+    process::{Child, Command},
+    sync::{Mutex, oneshot},
 };
 
 use crate::messages::{
@@ -18,53 +19,46 @@ pub struct SocketConnection {
 impl SocketConnection {
     pub fn new(listener: UnixStream) -> Self {
         Self {
-            listener: Mutex::new(listener)
+            listener: Mutex::new(listener),
         }
     }
 
     pub async fn add_interface(&self, req: AddInterfaceRequest) -> Answer {
-        let data = serde_json::to_vec(&req).unwrap();
-        self.send(data).await
+        self.send(WgmdMessages::AddInterface(req)).await
     }
 
     pub async fn remove_interface(&self, req: RemoveInterfaceRequest) -> Answer {
-        let data = serde_json::to_vec(&req).unwrap();
-        self.send(data).await
+        self.send(WgmdMessages::RemoveInterface(req)).await
     }
 
     pub async fn query_all_interfaces(&self) -> Answer {
-        let data = serde_json::to_vec(&WgmdMessages::QueryAllInterfaces).unwrap();
-        self.send(data).await
+        self.send(WgmdMessages::QueryAllInterfaces).await
     }
 
     pub async fn query_interface(&self, req: QueryInterface) -> Answer {
-        let data = serde_json::to_vec(&req).unwrap();
-        self.send(data).await
+        self.send(WgmdMessages::QueryInterface(req)).await
     }
 
     pub async fn add_user(&self, req: AddUserRequest) -> Answer {
-        let data = serde_json::to_vec(&req).unwrap();
-        self.send(data).await
+        self.send(WgmdMessages::AddUser(req)).await
     }
 
     pub async fn remove_user(&self, req: RemoveUserRequest) -> Answer {
-        let data = serde_json::to_vec(&req).unwrap();
-        self.send(data).await
+        self.send(WgmdMessages::RemoveUser(req)).await
     }
 
     pub async fn query_user(&self, req: QueryUser) -> Answer {
-        let data = serde_json::to_vec(&req).unwrap();
-        self.send(data).await
+        self.send(WgmdMessages::QueryUser(req)).await
     }
 
     pub async fn export(&self) -> Answer {
-        let data = serde_json::to_vec(&WgmdMessages::Export).unwrap();
-        self.send(data).await
+        self.send(WgmdMessages::Export).await
     }
 
-    async fn send(&self, msg: Vec<u8>) -> Answer {
+    async fn send(&self, msg: WgmdMessages) -> Answer {
+        let data = serde_json::to_vec(&msg).unwrap();
         let mut listener = self.listener.lock().await;
-        listener.write_all(&msg).await?;
+        listener.write_all(&data).await?;
         listener.write_all(b"\n").await?;
         let rec = Self::receive(&mut *listener).await?;
         Ok(rec)
