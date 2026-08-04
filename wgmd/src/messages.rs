@@ -116,7 +116,6 @@ pub enum WgmdMessages {
 }
 
 #[derive(Serialize, Deserialize, Debug, TS)]
-#[serde(tag = "type")]
 #[ts(export, export_to = "messages.ts")]
 pub struct QueryUser {
     user_id: i64,
@@ -124,7 +123,6 @@ pub struct QueryUser {
 }
 
 #[derive(Serialize, Deserialize, Debug, TS)]
-#[serde(tag = "type")]
 #[ts(export, export_to = "messages.ts")]
 pub struct QueryInterface {
     id: i64
@@ -135,6 +133,7 @@ pub struct QueryInterface {
 pub enum WgmdAnswer {
     #[serde(rename = "interfaces")]
     QueryAllInterfaces { data: Vec<PublicInterfaceConfig> },
+    
     #[serde(rename = "query_interface")]
     QuerySingleInterface { data: PublicInterfaceConfig },
     
@@ -154,6 +153,7 @@ pub fn process_message(m: WgmdMessages, db: &Connection) -> WgmdAnswer {
         }
         WgmdMessages::AddInterface(req) => {
             let id = insert_interface(req, db).unwrap();
+            println!("{}", id);
             WgmdAnswer::AddInterfaceId { data: id }
         }
         WgmdMessages::AddUser(req) => {

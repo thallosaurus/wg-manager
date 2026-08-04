@@ -1,8 +1,8 @@
-import type { WgmdMessages, WgmdAnswer } from "./wgmd/main.ts";
+import type { WgmdMessages, WgmdAnswer, AddInterfaceRequest, AddUserRequest, RemoveInterfaceRequest, RemoveUserRequest } from "./wgmd/main.ts";
 
-const conn = await Deno.connect({ transport: "unix", path: "/var/run/wgmd.sock"})
 
-export async function sendMessage(m: WgmdMessages): Promise<WgmdAnswer> {
+
+/*export async function sendMessage(m: WgmdMessages): Promise<WgmdAnswer> {
     const encoder = new TextEncoder();
     conn.write(encoder.encode(JSON.stringify(m) + "\n"));
 
@@ -11,7 +11,7 @@ export async function sendMessage(m: WgmdMessages): Promise<WgmdAnswer> {
     const decoder = new TextDecoder();
     const s = decoder.decode(buf.subarray(0, b!));
     return JSON.parse(s);
-}
+}*/
 
 const n: WgmdMessages = {
     "type": "add_user",

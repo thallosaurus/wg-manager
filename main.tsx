@@ -19,10 +19,16 @@ if (import.meta.main) {
   //const db = initDatabase();
 
   const app = new Hono();
-  app.get("/", (c) => {
+  app.get("/", async (c) => {
     //const interfaces = getMinimalinterfaceList(db);
 
-    return c.html(<MainView interfaces={interfaces} />)
+    const res = await sendMessage({
+      "type": "interfaces"
+    })
+
+    if (res.type !== "interfaces") return;
+
+    return c.html(<MainView interfaces={res.data} />)
   });
 
   app.get("/if/:id", async (c) => {
@@ -37,18 +43,16 @@ if (import.meta.main) {
     if (res.type !== "query_interface") {
       return c.html(<h1>Error</h1>)
     } else {
-
-      const d = res as PublicInterfaceConfig;
       /*try {
   
         const data = getInterfaceAndUserByInterfaceId(db, id)!;
         console.log(data)
         //const ip = IPv4.fromNumber(BigInt(data.address));
         */
-      return c.html(<InterfaceView def={d} />)
+      return c.html(<InterfaceView def={res.data} />)
     }
   })
 
-  app.route("/api", ApiRoute(db));
+  app.route("/api", ApiRoute());
   Deno.serve({ port: 8080 }, app.fetch)
 }

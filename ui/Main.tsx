@@ -18,7 +18,7 @@ export const NetmaskPicker = () => {
     )
 }
 
-export const MainView: FC<{ interfaces: MinimalInterfaceConfig[] }> = ({ interfaces }) => {
+export const MainView: FC<{ interfaces: PublicInterfaceConfig[] }> = ({ interfaces }) => {
     return (
         <>
             <h1>MainView</h1>
