@@ -1,0 +1,17 @@
+name: "Build Frontend"
+description: "Build Frontend Daemon"
+
+runs:
+  using: "composite"
+  steps:
+    - name: Setup Deno
+      uses: denoland/setup-deno@v2
+      with:
+        deno-version: v2.7.7
+    - name: Bundle Typescript
+      shell: bash
+      run: deno bundle main.tsx > bundle.js
+    - uses: actions/upload-artifact@v4
+      with:
+        name: wgm.js
+        path: bundle.js
