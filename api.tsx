@@ -23,7 +23,7 @@ export const ConfigRoutes = () => {
     return route;
 }
 
-const createUserCreationRequest = async (interfaceId: number, data: FormData): Promise<AddUserRequest> => {
+const createUserCreationRequest = (interfaceId: number, data: FormData): AddUserRequest => {
     if (!data.has("name")) throw new HTTPException(401, { message: "missing name" })
     const name = data.get("name")!.toString();
 
@@ -167,6 +167,8 @@ export const InterfaceApi = () => {
 
         return c.redirect(redirect)
     })
+
+    app.route("/:id/users", UsersApi());
 
     return app;
 }

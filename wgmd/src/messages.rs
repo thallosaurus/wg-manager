@@ -4,6 +4,7 @@ use std::{fmt::Write, format, fs, net::Ipv4Addr, writeln};
 use ipnet::Ipv4Net;
 use rusqlite::Connection;
 use serde::{Deserialize, Serialize};
+use serde_json::Value;
 use ts_rs::TS;
 
 use crate::interfaces::{wg_make_privkey, wg_make_psk, wg_make_pubkey, wg_quick_down, wg_quick_up};
@@ -294,13 +295,25 @@ pub fn get_all_interfaces_public(
         let na: i64 = row.get_unwrap("address");
         let users: String = row.get_unwrap("users");
 
+        let u: Vec<Value> = serde_json::from_str(&users).unwrap();
+        let u = u.iter().map(|v| {
+            let id  = v.get("id").unwrap().as_i64().unwrap();
+            let name  = v.get("name").unwrap().as_str().unwrap();
+            let address  = v.get("name").unwrap().as_u64().unwrap() as u32;
+            PublicUserConfig {
+                id,
+                name: String::from(name),
+                address: Ipv4Addr::from(address),
+            }
+        }).collect();
+
         result.push(PublicInterfaceConfig {
             id: row.get_unwrap("id"),
             name: row.get_unwrap("name"),
             netaddress: Ipv4Addr::from(na as u32),
             listenport: row.get_unwrap("listenport"),
             netmask: row.get_unwrap("netmask"),
-            users: serde_json::from_str(&users).unwrap()
+            users: u
         });
     }
     Ok(result)
@@ -318,13 +331,25 @@ pub fn get_single_interface_public(
         let na: i64 = row.get_unwrap("address");
         let users: String = row.get_unwrap("users");
 
+        let u: Vec<Value> = serde_json::from_str(&users).unwrap();
+        let u = u.iter().map(|v| {
+            let id  = v.get("id").unwrap().as_i64().unwrap();
+            let name  = v.get("name").unwrap().as_str().unwrap();
+            let address  = v.get("name").unwrap().as_u64().unwrap() as u32;
+            PublicUserConfig {
+                id,
+                name: String::from(name),
+                address: Ipv4Addr::from(address),
+            }
+        }).collect();
+
         Ok(Some(PublicInterfaceConfig {
             id,
             name: row.get_unwrap("name"),
             netaddress: Ipv4Addr::from(na as u32),
             listenport: row.get_unwrap("listenport"),
             netmask: row.get_unwrap("netmask"),
-            users: serde_json::from_str(&users).unwrap()
+            users: u
         }))
     } else {
         Ok(None)

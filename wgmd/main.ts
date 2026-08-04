@@ -51,12 +51,16 @@ export class SocketConnection {
 
     async #sendMessage(m: WgmdMessages): Promise<WgmdAnswer> {
         const encoder = new TextEncoder();
-        this.#conn.write(encoder.encode(JSON.stringify(m) + "\n"));
+        const req = JSON.stringify(m);
+        console.log(">", req);
+        this.#conn.write(encoder.encode(req + "\n"));
 
         const buf = new Uint8Array(1000);
         const b = await this.#conn.read(buf);
         const decoder = new TextDecoder();
         const s = decoder.decode(buf.subarray(0, b!));
-        return JSON.parse(s);
+        const res = JSON.parse(s);
+        console.log("<", res);
+        return res;
     }
 }
