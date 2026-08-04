@@ -12,11 +12,11 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
-      - name: Install dependencies
-        shell: bash
-        run: |
-          sudo apt update
-          sudo apt install -y wireguard-tools
+#      - name: Install dependencies
+#        shell: bash
+#        run: |
+#          sudo apt update
+#          sudo apt install -y wireguard-tools
       - uses: ./.github/actions/wgmd
       - uses: ./.github/actions/frontend
       - uses: ./.github/actions/dpkg

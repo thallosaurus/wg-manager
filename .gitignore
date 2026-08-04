@@ -30,3 +30,6 @@ target/
 bindings/
 bundle.js
 *.sock
+apt/
+!apt/DEBIAN
+wgm

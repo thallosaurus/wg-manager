@@ -14,7 +14,10 @@ runs:
         echo '#!/usr/bin/env -S deno -A' > bundle.js
         deno bundle main.tsx >> bundle.js
         chmod +x bundle.js
+    - name: Bundle Deno
+      shell: bash
+      run: deno compile -A --target aarch64-unknown-linux-gnu --output wgm
     - uses: actions/upload-artifact@v4
       with:
-        name: wgm.js
-        path: bundle.js
+        name: wgm
+        path: wgm
