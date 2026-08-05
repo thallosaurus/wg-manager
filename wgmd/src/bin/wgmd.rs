@@ -1,12 +1,12 @@
 use std::{
-    fs::{self, Permissions},
-    os::unix::fs::PermissionsExt,
+    fs::{self, Permissions}, os::unix::fs::{PermissionsExt, chown},
 };
 
 use rusqlite::Connection;
 use tokio::net::UnixListener;
 use tracing::info;
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
+use users::{get_group_by_gid, get_group_by_name};
 use wgmd::Wgmd;
 
 #[cfg(not(debug_assertions))]
