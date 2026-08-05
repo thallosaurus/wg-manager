@@ -93,11 +93,12 @@ async fn handle_client(stream: UnixStream, db: Arc<Mutex<Connection>>) -> std::i
         let db = db.lock().await;
 
         if let Ok(data) = json {
-            let answer = process_message(data, &db);
-            debug!("{:?}", answer);
-            let json = serde_json::to_string(&answer).unwrap();
+            let answer = match process_message(data, &db) {
+                Ok(answer) => serde_json::to_string(&answer),
+                Err(e) => serde_json::to_string(&e),
+            }?;
 
-            writer.write_all(&json.into_bytes()).await?;
+            writer.write_all(&answer.into_bytes()).await?;
             writer.write_all(b"\n").await?;
         } else {
             let e = json.err().unwrap();

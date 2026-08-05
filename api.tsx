@@ -69,7 +69,6 @@ export const UsersApi = () => {
         const socket = c.get("socket");
         const interfaceId = parseInt(c.req.param("id")!);
         const userId = parseInt(c.req.param("user")!);
-        console.log(userId, interfaceId)
         //const data = getUserFromInterface(db, interfaceId, userId, true)
         //return c.text(writeOutWireguardClientConfig(data))
         const data = await socket.exportClient({

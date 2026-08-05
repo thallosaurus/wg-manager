@@ -58,42 +58,50 @@ export const MainView: FC<{ interfaces: PublicInterfaceConfig[] }> = ({ interfac
 }
 
 interface InterfaceProps {
-    def: PublicInterfaceConfig
+    def: PublicInterfaceConfig | null
 }
 
 export const InterfaceView: FC<InterfaceProps> = ({ def }) => {
     return (
         <>
-            <h1>Interface: {def.name}</h1>
-            <a href="/">Back</a>
-            <p>Address: {def.netaddress}/{def.netmask}</p>
-            <p>Network Address: {def.netaddress}</p>
-            <p>Users</p>
-            <ul>
-                {def.users.map((v, i) => {
-                    return <li key={i + "-" + v.id}>
-                        <span>
-                            {v.name}: {new IPv4(v.address).toString()}
-                            </span><a href={`/api/interface/${def.id}/users/${v.id}/client`}>Client</a>
-                    </li>
-                })}
-            </ul>
+            {def !== null ?
+                (
+                    <>
+                        < h1 > Interface : {def.name}</h1 >
+                        <a href="/">Back</a>
+                        <p>Address: {def.netaddress}/{def.netmask}</p>
+                        <p>Network Address: {def.netaddress}</p>
+                        <p>Users</p>
+                        <ul>
+                            {def.users.map((v, i) => {
+                                return <li key={i + "-" + v.id}>
+                                    <span>
+                                        {v.name}: {new IPv4(v.address).toString()}
+                                    </span><a href={`/api/interface/${def.id}/users/${v.id}/client`}>Client</a>
+                                </li>
+                            })}
+                        </ul>
 
-            <h2>Add User</h2>
-            <form action={`/api/interface/${def.id}/users`} method="post">
-                <label for="name">Username:</label>
-                <input type="text" name="name"></input>
-                <label for="ip">Client IP:</label>
-                <input type="text" name="ip"></input>
-                <input type="hidden" name="redirect" value="/if/" />
-                <input type="submit"></input>
-            </form>
+                        <h2>Add User</h2>
+                        <form action={`/api/interface/${def.id}/users`} method="post">
+                            <label for="name">Username:</label>
+                            <input type="text" name="name"></input>
+                            <label for="ip">Client IP:</label>
+                            <input type="text" name="ip"></input>
+                            <input type="hidden" name="redirect" value="/if/" />
+                            <input type="submit"></input>
+                        </form>
 
-            <h2>Actions</h2>
-            <form action={`/api/interface/${def.id}/delete`} method="post">
-                <input type="hidden" name="redirect" value="/"></input>
-                <button type="submit">Delete</button>
-            </form>
+                        <h2>Actions</h2>
+                        <form action={`/api/interface/${def.id}/delete`} method="post">
+                            <input type="hidden" name="redirect" value="/"></input>
+                            <button type="submit">Delete</button>
+                        </form>
+                    </>
+                ) : <>
+                    <h1>Entry not found</h1>
+                </>}
+
         </>
     )
 }

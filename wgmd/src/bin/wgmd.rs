@@ -1,10 +1,13 @@
-use std::{fs::{self, Permissions}, os::unix::fs::PermissionsExt};
+use std::{
+    fs::{self, Permissions},
+    os::unix::fs::PermissionsExt,
+};
 
 use rusqlite::Connection;
 use tokio::net::UnixListener;
 use tracing::info;
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
-use wgmd::{Wgmd};
+use wgmd::Wgmd;
 
 #[cfg(not(debug_assertions))]
 const SOCKET_PATH: &str = "/var/run/wgmd.sock";
@@ -36,6 +39,15 @@ async fn main() -> std::io::Result<()> {
 fn init_tracing() {
     tracing_subscriber::registry()
         .with(tracing_subscriber::fmt::layer())
+        .with(
+            tracing_subscriber::EnvFilter::try_from_default_env().unwrap_or_else(|_| {
+                #[cfg(debug_assertions)]
+                return format!("{}=trace", env!("CARGO_CRATE_NAME")).into();
+
+                #[cfg(not(debug_assertions))]
+                return format!("{}=info", env!("CARGO_CRATE_NAME")).into();
+            }),
+        )
         .init();
 }
 
