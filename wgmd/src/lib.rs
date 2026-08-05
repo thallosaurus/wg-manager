@@ -11,7 +11,7 @@ use tokio::{
     sync::Mutex,
 };
 use tracing::{debug, error, info};
-use crate::messages::{WgmdMessages, process_message};
+use crate::messages::{WgmdError, WgmdMessages, process_message};
 
 mod interfaces;
 pub mod messages;
@@ -103,7 +103,8 @@ async fn handle_client(stream: UnixStream, db: Arc<Mutex<Connection>>) -> std::i
         } else {
             let e = json.err().unwrap();
             error!("{}", e);
-            writer.write_all(br#"{"success":false}"#).await?;
+            let e: WgmdError = e.into();
+            writer.write_all(&serde_json::to_vec(&e).unwrap()).await?;
             writer.write_all(b"\n").await?;
         }
     }

@@ -1,5 +1,5 @@
 use core::fmt;
-use std::{fmt::Write, format, fs, io, net::Ipv4Addr, writeln};
+use std::{fmt::Write, format, fs, io, net::Ipv4Addr, str::Utf8Error, string::FromUtf8Error, writeln};
 
 use ipnet::Ipv4Net;
 use rusqlite::Connection;
@@ -170,32 +170,47 @@ pub struct QueryInterface {
     id: i64,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, TS)]
 #[serde(tag = "type")]
+#[ts(export, export_to = "messages.ts")]
 pub enum WgmdError {
-    DatabaseError(String),
-    IoError(String),
-    FormattingError(String),
+    DatabaseError { msg: String },
+    IoError { msg: String },
+    FormattingError{ msg: String },
+    Utf8Error { msg: String },
+    SerdeError { msg: String },
 }
 
 impl From<rusqlite::Error> for WgmdError {
     fn from(value: rusqlite::Error) -> Self {
         //let slite_error = e.sqlite_error().unwrap();
-        WgmdError::DatabaseError(value.to_string())
+        WgmdError::DatabaseError { msg: value.to_string() }
     }
 }
 
 impl From<io::Error> for WgmdError {
     fn from(value: io::Error) -> Self {
         //let slite_error = e.sqlite_error().unwrap();
-        WgmdError::IoError(value.to_string())
+        WgmdError::IoError { msg: value.to_string() }
     }
 }
 
 impl From<fmt::Error> for WgmdError {
     fn from(value: fmt::Error) -> Self {
         //let slite_error = e.sqlite_error().unwrap();
-        WgmdError::FormattingError(value.to_string())
+        WgmdError::FormattingError { msg: value.to_string() }
+    }
+}
+
+impl From<FromUtf8Error> for WgmdError {
+    fn from(value: FromUtf8Error) -> Self {
+        WgmdError::Utf8Error { msg: value.to_string() }
+    }
+}
+
+impl From<serde_json::Error> for WgmdError {
+    fn from(value: serde_json::Error) -> Self {
+        WgmdError::SerdeError { msg: value.to_string() }
     }
 }
 
@@ -327,7 +342,7 @@ fn get_all_interfaces_private(db: &Connection) -> Result<Vec<InterfaceConfig>, W
             private_key: privkey.trim().to_string(),
             public_key: pubkey.trim().to_string(),
             endpoint: row.get("endpoint")?,
-            users: serde_json::from_str(&v).unwrap(),
+            users: serde_json::from_str(&v)?,
         });
     }
 
@@ -346,7 +361,7 @@ pub fn get_all_interfaces_public(db: &Connection) -> Result<Vec<PublicInterfaceC
         let na: i64 = row.get("address")?;
         let users: String = row.get("users")?;
 
-        let u: Vec<Value> = serde_json::from_str(&users).unwrap();
+        let u: Vec<Value> = serde_json::from_str(&users)?;
         let u = u
             .iter()
             .map(|v| {
@@ -386,7 +401,7 @@ pub fn get_single_interface_public(
         let na: i64 = row.get("address")?;
         let users: String = row.get("users")?;
 
-        let u: Vec<Value> = serde_json::from_str(&users).unwrap();
+        let u: Vec<Value> = serde_json::from_str(&users)?;
         let u = u
             .iter()
             .map(|v| {
@@ -429,9 +444,9 @@ fn add_user_to_interface(conf: AddUserRequest, db: &Connection) -> Result<i64, W
         conf.interface_id,
         conf.username,
         u32::from(conf.address),
-        String::from_utf8(client_pubkey).unwrap(),
-        String::from_utf8(client_privkey).unwrap(),
-        String::from_utf8(client_psk).unwrap(),
+        String::from_utf8(client_pubkey)?,
+        String::from_utf8(client_privkey)?,
+        String::from_utf8(client_psk)?,
     ))?;
     Ok(db.last_insert_rowid())
 }

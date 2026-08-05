@@ -1,40 +1,21 @@
 export default [{
     url: "/api/interface",
     method: "get",
-    response: () => {return [{ "id": 2, "name": "wg0", "address": 2887712772 }, { "id": 3, "name": "test0", "address": 1162167557 }]}
+    response: () => {
+        return { "type": "interfaces", "data": [{ "id": 1, "name": "test0", "netaddress": "172.16.0.1", "listenport": 12345, "netmask": 24, "users": [{ "id": 5, "name": "redirect_test", "address": "172.16.0.6" }, { "id": 2, "name": "test", "address": "172.16.0.3" }, { "id": 3, "name": "test33", "address": "172.16.0.4" }, { "id": 4, "name": "test34", "address": "172.16.0.5" }, { "id": 1, "name": "testuser", "address": "172.16.0.2" }] }] }
+    }
 }, {
-    url: "/api/interface/2",
+    url: "/api/interface/1",
     method: "get",
     response: () => {
-        return {
-            "id": 2,
-            "name": "wg0",
-            "netmask": 24,
-            "address": 2887712772,
-            "netaddress": 2887712768,
-            "broadcast": 2887713023,
-            "mtu": 1420,
-            "port": 42069,
-            "users": [
-                {
-                    "id": 2,
-                    "name": "test",
-                    "address": 2887712773
-                }
-            ]
-        };
+        return { "id": 1, "name": "test0", "netaddress": "172.16.0.1", "listenport": 12345, "netmask": 24, "users": [{ "id": 1, "name": "testuser", "address": "172.16.0.2" }, { "id": 2, "name": "test", "address": "172.16.0.3" }, { "id": 3, "name": "test33", "address": "172.16.0.4" }, { "id": 4, "name": "test34", "address": "172.16.0.5" }, { "id": 5, "name": "redirect_test", "address": "172.16.0.6" }] }
     }
 },
 {
-    url: "/api/interface/2/users/2",
+    url: "/api/interface/1/users/1",
     method: "get",
     response: () => {
-        return {
-            "ip": 2887712773,
-            "clientPubkey": "Tbd5EboOcLVphpqsvndCBwRGUazl0TETxZV11LK7cUQ=",
-            "endpoint": "vpn.example.net",
-            "port": 42069
-        }
+        return { "id": 1, "name": "testuser", "address": "172.16.0.2" }
     }
 }
 ]

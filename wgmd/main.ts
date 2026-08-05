@@ -1,4 +1,4 @@
-import type { AddInterfaceRequest, AddUserRequest, RemoveInterfaceRequest, RemoveUserRequest, WgmdAnswer, WgmdMessages, ExportClientRequest } from "./bindings/messages.ts"
+import type { AddInterfaceRequest, AddUserRequest, RemoveInterfaceRequest, RemoveUserRequest, WgmdAnswer, WgmdMessages, ExportClientRequest, WgmdError } from "./bindings/messages.ts"
 export * from "./bindings/messages.ts"
 
 export class SocketConnection {
@@ -19,7 +19,7 @@ export class SocketConnection {
         read: async (p) => {
             return 0
         },
-        
+
     }) {
         this.#conn = conn;
     }
@@ -36,10 +36,10 @@ export class SocketConnection {
         return await this.#sendMessage({ type: "interfaces" })
     }
 
-    async queryInterface({ id }:{ id: number }) {
+    async queryInterface({ id }: { id: number }) {
         return await this.#sendMessage({ type: "query_interface", id: id as unknown as bigint })
     }
-    
+
     async addUser(req: AddUserRequest) {
         return await this.#sendMessage({ type: "add_user", ...req });
     }
@@ -48,7 +48,7 @@ export class SocketConnection {
         return await this.#sendMessage({ type: "remove_user", ...req });
     }
 
-    async queryUser({id, if_id }: { id: number, if_id: number}) {
+    async queryUser({ id, if_id }: { id: number, if_id: number }) {
         return await this.#sendMessage({ type: "query_user", user_id: id as unknown as bigint, interface_id: if_id as unknown as bigint })
     }
 
@@ -70,10 +70,23 @@ export class SocketConnection {
         const b = await this.#conn.read(buf);
         const decoder = new TextDecoder();
         const s = decoder.decode(buf.subarray(0, b!));
-        const res = JSON.parse(s);
+        const res: WgmdAnswer | WgmdError = JSON.parse(s);
         console.log("<", res);
+        if (isError(res)) return Promise.reject(res.msg);
         return res;
     }
+}
+
+const isError = (res: WgmdAnswer | WgmdError): res is WgmdError => {
+    switch (res.type) {
+        case "DatabaseError":
+        case "FormattingError":
+        case "IoError":
+        case "SerdeError":
+        case "Utf8Error":
+            return true;
+    }
+    return false
 }
 
 interface Outgoing {
