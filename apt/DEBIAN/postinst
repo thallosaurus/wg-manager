@@ -6,6 +6,7 @@ if ! getent group wgmd >/dev/null; then
 fi
 
 mkdir -p /var/lib/wgmd/configs
+mkdir -p /var/lib/wgmd/dns
 #mkdir -p /run/wgmd
 
 chown root:wgmd /var/lib/wgmd

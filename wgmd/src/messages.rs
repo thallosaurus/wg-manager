@@ -1,17 +1,18 @@
 use core::fmt;
 use std::{
-    fmt::Write, format, fs, io, net::Ipv4Addr, str::Utf8Error, string::FromUtf8Error, writeln,
+    fmt::Write, format, fs, io, net::Ipv4Addr, str::Utf8Error, string::FromUtf8Error, sync::Arc, writeln,
 };
 
 use ipnet::Ipv4Net;
 use rusqlite::Connection;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
+use tokio::sync::Mutex;
 use tracing::debug;
 use ts_rs::TS;
 use uuid::Uuid;
 
-use crate::interfaces::{wg_make_privkey, wg_make_psk, wg_make_pubkey, wg_quick_down, wg_quick_up};
+use crate::{dns::{CONFIG_HEADER, DnsmasqHost}, interfaces::{wg_make_privkey, wg_make_psk, wg_make_pubkey, wg_quick_down, wg_quick_up}};
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 //#[ts(export, export_to = "messages.ts")]
@@ -52,6 +53,12 @@ pub struct UserConfig {
     address: u32,
 }
 
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct DnsConfig {
+    name: String,
+    ip: Ipv4Addr
+}
+
 #[derive(Serialize, Deserialize, Debug)]
 //#[ts(export, export_to = "messages.ts")]
 pub struct InterfaceConfig {
@@ -66,6 +73,7 @@ pub struct InterfaceConfig {
     public_key: String,
     endpoint: String,
     users: Vec<UserConfig>,
+    dns: Vec<DnsConfig>
 }
 
 impl InterfaceConfig {
@@ -97,6 +105,19 @@ impl InterfaceConfig {
             writeln!(c, "PresharedKey = {}", u.psk.trim())?;
             writeln!(c, "AllowedIPs = {}", ip.to_string())?;
             writeln!(c, "")?;
+        }
+        Ok(c)
+    }
+
+    pub fn to_dnsmasq_config(&self) -> Result<String, fmt::Error> {
+        let mut c = String::new();
+
+        writeln!(c, "listen-address={}", self.address.to_string())?;
+        writeln!(c, "no-dhcp-interface={}", self.if_name)?;
+        writeln!(c, "{}", CONFIG_HEADER)?;
+
+        for d in self.dns.iter() {
+            writeln!(c, "server=/{}/{}", d.name, d.ip.to_string())?;
         }
         Ok(c)
     }
@@ -336,7 +357,7 @@ fn insert_interface(conf: AddInterfaceRequest, db: &Connection) -> Result<i64, W
 
 fn get_all_interfaces_private(db: &Connection) -> Result<Vec<InterfaceConfig>, WgmdError> {
     let mut stmt =
-        db.prepare("SELECT id, name, address, listenport, netmask, privatekey, pubkey, mtu, endpoint, users FROM InterfaceConfigsKeys WHERE enabled = 1")?;
+        db.prepare("SELECT id, name, address, listenport, netmask, privatekey, pubkey, mtu, endpoint, users, dns FROM InterfaceConfigsKeys WHERE enabled = 1")?;
     let mut rows = stmt.query(())?;
 
     let mut result: Vec<InterfaceConfig> = Vec::new();
@@ -344,6 +365,7 @@ fn get_all_interfaces_private(db: &Connection) -> Result<Vec<InterfaceConfig>, W
     while let Some(row) = rows.next()? {
         let na: i64 = row.get("address")?;
         let v: String = row.get("users")?;
+        let dns: String = row.get("dns")?;
         let privkey: String = row.get("privatekey")?;
         let pubkey: String = row.get("pubkey")?;
         result.push(InterfaceConfig {
@@ -357,6 +379,7 @@ fn get_all_interfaces_private(db: &Connection) -> Result<Vec<InterfaceConfig>, W
             public_key: pubkey.trim().to_string(),
             endpoint: row.get("endpoint")?,
             users: serde_json::from_str(&v)?,
+            dns: serde_json::from_str(&dns)?
         });
     }
 
@@ -505,15 +528,7 @@ fn query_user_private(q: QueryUser, db: &Connection) -> Result<PrivateUserConfig
     })?)
 }
 
-fn insert_state(id: &Uuid, if_name: &str, db: &Connection) -> Result<(), rusqlite::Error> {
-    db.execute(
-        "INSERT INTO state (runId, interface) VALUES (?, ?)",
-        (id.to_string(), if_name),
-    )?;
-    Ok(())
-}
-
-pub fn process_message(m: WgmdMessages, db: &Connection) -> Result<WgmdAnswer, WgmdError> {
+pub fn process_message(m: WgmdMessages, db: &Connection, dns: &mut DnsmasqHost) -> Result<WgmdAnswer, WgmdError> {
     debug!("> {:?}", m);
 
     let result = match m {
@@ -528,18 +543,17 @@ pub fn process_message(m: WgmdMessages, db: &Connection) -> Result<WgmdAnswer, W
             .map(|r| WgmdAnswer::QuerySingleInterface(QuerySingleInterfaceAnswer { data: r })),
         WgmdMessages::AddUser(req) => add_user_to_interface(req, db)
             .map(|id| WgmdAnswer::AddUserId(CreateAnswer { data: id })),
-        WgmdMessages::RemoveUser(req) => {
-            remove_user_from_interface(req, db).map(|_| WgmdAnswer::StatusOk)
-        }
+        WgmdMessages::RemoveUser(req) => remove_user_from_interface(req, db).map(|_| WgmdAnswer::StatusOk),
         WgmdMessages::QueryUser(q) => query_user(q, db)
             .map(|data| WgmdAnswer::QuerySingleUser(QuerySingleUserAnswer { data })),
         WgmdMessages::Export => {
             let data = get_all_interfaces_private(db)?;
-            let run_id = Uuid::new_v4();
-
+            //let run_id = Uuid::new_v4();
+            dns.stop_all_instances()?;
             for c in data {
-                //insert_state(&c.if_name, &db)?;
                 reapply_config(&c)?;
+
+                dns.add_instance(&c.if_name)?;
             }
             Ok(WgmdAnswer::StatusOk)
         }
@@ -561,10 +575,12 @@ pub fn process_message(m: WgmdMessages, db: &Connection) -> Result<WgmdAnswer, W
 }
 
 fn reapply_config(c: &InterfaceConfig) -> io::Result<()> {
-    let path = format!("/var/lib/wgmd/configs/{}.conf", c.if_name);
-    wg_quick_down(&path)?;
-    fs::write(&path, c.to_wireguard_config().unwrap())?;
-    wg_quick_up(&path)?;
+    let wg_path = format!("/var/lib/wgmd/configs/{}.conf", c.if_name);
+    let dns_path = format!("/var/lib/wgmd/dns/{}.conf", c.if_name);
+    wg_quick_down(&wg_path)?;
+    fs::write(&wg_path, c.to_wireguard_config().unwrap())?;
+    fs::write(&dns_path, c.to_dnsmasq_config().unwrap())?;
+    wg_quick_up(&wg_path)?;
     Ok(())
 }
 

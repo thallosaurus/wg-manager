@@ -1,5 +1,9 @@
 use std::sync::Arc;
 
+use crate::{
+    dns::DnsmasqHost,
+    messages::{WgmdError, WgmdMessages, process_message},
+};
 use rusqlite::Connection;
 use tokio::{
     io,
@@ -11,11 +15,11 @@ use tokio::{
     sync::Mutex,
 };
 use tracing::{debug, error, info};
-use crate::messages::{WgmdError, WgmdMessages, process_message};
 
+pub mod client;
+pub mod dns;
 mod interfaces;
 pub mod messages;
-pub mod client;
 
 const DB_QUERY: &str = include_str!("../database.sql");
 
@@ -25,13 +29,13 @@ pub struct Wgmd;
 impl Wgmd {
     pub async fn listen(listener: &UnixListener, db: Connection) -> io::Result<()> {
         db.execute_batch(DB_QUERY).unwrap();
+        let dns = DnsmasqHost::new();
+        let dns_ref = Arc::new(Mutex::new(dns));
+
         let db_ref = Arc::new(Mutex::new(db));
         let sigterm = signal(SignalKind::terminate())?;
         let sigint = signal(SignalKind::interrupt())?;
-        Self::main_loop(
-            (sigint, sigterm),
-            listener,
-            db_ref)
+        Self::main_loop((sigint, sigterm), listener, db_ref, dns_ref)
             .await
             .unwrap();
 
@@ -46,6 +50,7 @@ impl Wgmd {
         signals: Signals,
         listener: &UnixListener,
         db_ref: Arc<Mutex<Connection>>,
+        dns_ref: Arc<Mutex<DnsmasqHost>>,
     ) -> io::Result<()> {
         let (mut sigint, mut sigterm) = signals;
         loop {
@@ -55,8 +60,9 @@ impl Wgmd {
                 info!("new socket connection");
 
                 let db = db_ref.clone();
+                let dns = dns_ref.clone();
                 tokio::spawn(async move {
-                    if let Err(e) = handle_client(stream, db).await {
+                    if let Err(e) = handle_client(stream, db, dns).await {
                         error!("{}", e);
                         //eprintln!("{e}")
                     }
@@ -76,7 +82,11 @@ impl Wgmd {
     }
 }
 
-async fn handle_client(stream: UnixStream, db: Arc<Mutex<Connection>>) -> std::io::Result<()> {
+async fn handle_client(
+    stream: UnixStream,
+    db: Arc<Mutex<Connection>>,
+    dns: Arc<Mutex<DnsmasqHost>>,
+) -> std::io::Result<()> {
     let (reader, mut writer) = stream.into_split();
 
     let mut reader = BufReader::new(reader);
@@ -91,9 +101,10 @@ async fn handle_client(stream: UnixStream, db: Arc<Mutex<Connection>>) -> std::i
         line.clear();
 
         let db = db.lock().await;
+        let mut dns = dns.lock().await;
 
         if let Ok(data) = json {
-            let answer = match process_message(data, &db) {
+            let answer = match process_message(data, &db, &mut dns) {
                 Ok(answer) => serde_json::to_string(&answer),
                 Err(e) => serde_json::to_string(&e),
             }?;

@@ -1,10 +1,9 @@
 use std::{
-    //dont remove
     fs::{self, Permissions}, os::unix::fs::{PermissionsExt, chown},
 };
 
 use rusqlite::Connection;
-use tokio::net::UnixListener;
+use tokio::{net::UnixListener, process::Command};
 use tracing::info;
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 

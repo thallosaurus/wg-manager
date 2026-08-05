@@ -5,4 +5,4 @@ Priority: optional
 Architecture: arm64
 Maintainer: Lenna Mothburn
 Description: WireGuard management tool
-Depends: wireguard-tools
+Depends: wireguard-tools, dnsmasq
