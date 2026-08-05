@@ -574,6 +574,12 @@ pub fn process_message(m: WgmdMessages, db: &Connection, dns: &mut DnsmasqHost) 
     result
 }
 
+fn recreate_dir(path: &str) -> io::Result<()> {
+    fs::remove_dir_all(path)?;
+    fs::create_dir(path)?;
+    Ok(())
+}
+
 fn reapply_config(c: &InterfaceConfig) -> io::Result<()> {
     let wg_path = format!("/var/lib/wgmd/configs/{}.conf", c.if_name);
     let dns_path = format!("/var/lib/wgmd/dns/{}.conf", c.if_name);
