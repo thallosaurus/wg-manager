@@ -167,7 +167,7 @@ export const InterfaceApi = () => {
         if (query.type !== "status") return c.html(<h1>Error</h1>)
 
         c.status(200);
-        return c.json(query.status)
+        return c.redirect("/")
     })
 
     app.post("/:id/delete", async (c) => {

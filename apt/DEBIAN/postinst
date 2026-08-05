@@ -5,7 +5,7 @@ if ! getent group wgmd >/dev/null; then
     groupadd --system wgmd
 fi
 
-mkdir -p /var/lib/wgmd
+mkdir -p /var/lib/wgmd/configs
 #mkdir -p /run/wgmd
 
 chown root:wgmd /var/lib/wgmd

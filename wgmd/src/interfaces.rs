@@ -1,4 +1,7 @@
-use std::{io::{self, Write}, process::{Command, Stdio}};
+use std::{
+    io::{self, Write},
+    process::{Command, Stdio},
+};
 
 pub fn wg_make_pubkey(pkey: &Vec<u8>) -> io::Result<Vec<u8>> {
     run_cmd_stdin("wg", &["pubkey"], Some(pkey))
@@ -22,6 +25,14 @@ pub fn wg_quick_down(if_name: &str) -> io::Result<()> {
     Ok(())
 }
 
+pub fn wg_get_interfaces() -> io::Result<Vec<String>> {
+    //wg show interfaces
+    let output = run_cmd_stdin("wg", &["show", "interfaces"], None)?;
+    let s = String::from_utf8(output).unwrap();
+
+    Ok(s.split(" ").map(|f| f.to_string()).collect())
+}
+
 fn run_cmd_stdin(cmd: &str, args: &[&str], input: Option<&Vec<u8>>) -> io::Result<Vec<u8>> {
     let mut child = Command::new(cmd)
         .args(args)
@@ -29,10 +40,10 @@ fn run_cmd_stdin(cmd: &str, args: &[&str], input: Option<&Vec<u8>>) -> io::Resul
         .stdout(Stdio::piped())
         .spawn()?;
 
-        if let Some(i) = input {
-            child.stdin.as_mut().unwrap().write_all(&i)?;
-        }
+    if let Some(i) = input {
+        child.stdin.as_mut().unwrap().write_all(&i)?;
+    }
 
-        let output = child.wait_with_output()?;
-        Ok(output.stdout)
+    let output = child.wait_with_output()?;
+    Ok(output.stdout)
 }

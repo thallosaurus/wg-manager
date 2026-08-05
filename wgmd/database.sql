@@ -2,28 +2,46 @@ CREATE TABLE IF NOT EXISTS "interfaces" (
 	"id"	INTEGER UNIQUE,
 	"name"	TEXT NOT NULL UNIQUE,
 	"address" UNSIGNED INTEGER NOT NULL,
+	"enabled" INTEGER DEFAULT 1,
 	"netaddress" UNSIGNED INTEGER NOT NULL,
 	"broadcast" UNSIGNED INTEGER NOT NULL,
 	"netmask" INTEGER CHECK( netmask BETWEEN 0 AND 32 ) NOT NULL,
-	"endpoint" TEXT NOT NULL,
+	"endpoint" TEXT UNIQUE NOT NULL,
 	"listenport" INTEGER CHECK(listenport BETWEEN 1 AND 65535) NOT NULL UNIQUE,
-	"privatekey" TEXT UNIQUE,
-	"pubkey" TEXT UNIQUE,
-	"mtu" INTEGER,
+	"privatekey" TEXT UNIQUE NOT NULL,
+	"pubkey" TEXT UNIQUE NOT NULL,
+	"mtu" INTEGER NOT NULL,
+	"created_at" TEXT NOT NULL DEFAULT current_timestamp,
+    "updated_at" TEXT NOT NULL DEFAULT current_timestamp,
 	PRIMARY KEY("id" AUTOINCREMENT)
 );
 
 CREATE TABLE IF NOT EXISTS "users" (
 	"id"	INTEGER,
 	"interface_id" INTEGER NOT NULL,
-	"name"	TEXT,
+	"name"	TEXT NOT NULL,
 	"publicKey"	TEXT UNIQUE,
 	"allowed_ip" UNSIGNED INTEGER NOT NULL,
 	"psk"	TEXT,
 	"privateKey" TEXT UNIQUE,
+	"created_at" TEXT NOT NULL DEFAULT current_timestamp,
+    "updated_at" TEXT NOT NULL DEFAULT current_timestamp,
 	PRIMARY KEY("id" AUTOINCREMENT),
 	FOREIGN KEY("interface_id") REFERENCES "interfaces"("id") ON DELETE CASCADE
 );
+
+CREATE TABLE IF NOT EXISTS "dns" (
+	"id"	INTEGER UNIQUE,
+	"interface_id"	INTEGER NOT NULL UNIQUE,
+	"domain"	INTEGER NOT NULL UNIQUE,
+	PRIMARY KEY("id" AUTOINCREMENT),
+	FOREIGN KEY("interface_id") REFERENCES "interfaces"("id") ON DELETE CASCADE
+);
+
+-- CREATE TABLE IF NOT EXISTS "state" (
+--	"runId"	TEXT NOT NULL,
+--	"interfaceName"	TEXT NOT NULL,
+-- );
 
 CREATE TRIGGER IF NOT EXISTS validate_user_ip
 BEFORE INSERT ON users
@@ -123,6 +141,7 @@ CREATE VIEW IF NOT EXISTS InterfaceConfigs AS
 SELECT
                     i.id,
                     i.name,
+					i.enabled,
                     i.address,
                     i.netaddress,
 					i.endpoint,
@@ -147,6 +166,7 @@ CREATE VIEW IF NOT EXISTS InterfaceConfigsKeys AS
 SELECT
         i.id,
         i.name,
+		i.enabled,
         i.address,
         i.netaddress,
 		i.endpoint,

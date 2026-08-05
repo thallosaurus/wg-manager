@@ -1,5 +1,7 @@
 use core::fmt;
-use std::{fmt::Write, format, fs, io, net::Ipv4Addr, str::Utf8Error, string::FromUtf8Error, writeln};
+use std::{
+    fmt::Write, format, fs, io, net::Ipv4Addr, str::Utf8Error, string::FromUtf8Error, writeln,
+};
 
 use ipnet::Ipv4Net;
 use rusqlite::Connection;
@@ -7,6 +9,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use tracing::debug;
 use ts_rs::TS;
+use uuid::Uuid;
 
 use crate::interfaces::{wg_make_privkey, wg_make_psk, wg_make_pubkey, wg_quick_down, wg_quick_up};
 
@@ -111,6 +114,7 @@ pub struct PublicUserConfig {
 #[ts(export, export_to = "messages.ts")]
 pub struct PublicInterfaceConfig {
     id: i64,
+    enabled: bool,
     name: String,
     netaddress: Ipv4Addr,
     listenport: u16,
@@ -176,7 +180,7 @@ pub struct QueryInterface {
 pub enum WgmdError {
     DatabaseError { msg: String },
     IoError { msg: String },
-    FormattingError{ msg: String },
+    FormattingError { msg: String },
     Utf8Error { msg: String },
     SerdeError { msg: String },
 }
@@ -184,33 +188,43 @@ pub enum WgmdError {
 impl From<rusqlite::Error> for WgmdError {
     fn from(value: rusqlite::Error) -> Self {
         //let slite_error = e.sqlite_error().unwrap();
-        WgmdError::DatabaseError { msg: value.to_string() }
+        WgmdError::DatabaseError {
+            msg: value.to_string(),
+        }
     }
 }
 
 impl From<io::Error> for WgmdError {
     fn from(value: io::Error) -> Self {
         //let slite_error = e.sqlite_error().unwrap();
-        WgmdError::IoError { msg: value.to_string() }
+        WgmdError::IoError {
+            msg: value.to_string(),
+        }
     }
 }
 
 impl From<fmt::Error> for WgmdError {
     fn from(value: fmt::Error) -> Self {
         //let slite_error = e.sqlite_error().unwrap();
-        WgmdError::FormattingError { msg: value.to_string() }
+        WgmdError::FormattingError {
+            msg: value.to_string(),
+        }
     }
 }
 
 impl From<FromUtf8Error> for WgmdError {
     fn from(value: FromUtf8Error) -> Self {
-        WgmdError::Utf8Error { msg: value.to_string() }
+        WgmdError::Utf8Error {
+            msg: value.to_string(),
+        }
     }
 }
 
 impl From<serde_json::Error> for WgmdError {
     fn from(value: serde_json::Error) -> Self {
-        WgmdError::SerdeError { msg: value.to_string() }
+        WgmdError::SerdeError {
+            msg: value.to_string(),
+        }
     }
 }
 
@@ -322,7 +336,7 @@ fn insert_interface(conf: AddInterfaceRequest, db: &Connection) -> Result<i64, W
 
 fn get_all_interfaces_private(db: &Connection) -> Result<Vec<InterfaceConfig>, WgmdError> {
     let mut stmt =
-        db.prepare("SELECT id, name, address, listenport, netmask, privatekey, pubkey, mtu, endpoint, users FROM InterfaceConfigsKeys")?;
+        db.prepare("SELECT id, name, address, listenport, netmask, privatekey, pubkey, mtu, endpoint, users FROM InterfaceConfigsKeys WHERE enabled = 1")?;
     let mut rows = stmt.query(())?;
 
     let mut result: Vec<InterfaceConfig> = Vec::new();
@@ -351,7 +365,7 @@ fn get_all_interfaces_private(db: &Connection) -> Result<Vec<InterfaceConfig>, W
 
 pub fn get_all_interfaces_public(db: &Connection) -> Result<Vec<PublicInterfaceConfig>, WgmdError> {
     let mut stmt = db.prepare(
-        "SELECT id, name, address, listenport, netmask, endpoint, users FROM InterfaceConfigs",
+        "SELECT id, enabled, name, address, listenport, netmask, endpoint, users FROM InterfaceConfigs",
     )?;
     let mut rows = stmt.query(())?;
 
@@ -378,6 +392,7 @@ pub fn get_all_interfaces_public(db: &Connection) -> Result<Vec<PublicInterfaceC
 
         result.push(PublicInterfaceConfig {
             id: row.get("id")?,
+            enabled: row.get("enabled")?,
             name: row.get("name")?,
             netaddress: Ipv4Addr::from(na as u32),
             listenport: row.get("listenport")?,
@@ -393,7 +408,7 @@ pub fn get_single_interface_public(
     db: &Connection,
 ) -> Result<Option<PublicInterfaceConfig>, WgmdError> {
     let mut stmt = db.prepare(
-        "SELECT name, address, listenport, netmask, users FROM InterfaceConfigs WHERE id = ?",
+        "SELECT name, address, enabled, listenport, netmask, users FROM InterfaceConfigs WHERE id = ?",
     )?;
     let mut rows = stmt.query((id,))?;
     let r = rows.next().unwrap();
@@ -418,6 +433,7 @@ pub fn get_single_interface_public(
 
         Ok(Some(PublicInterfaceConfig {
             id,
+            enabled: row.get("enabled")?,
             name: row.get("name")?,
             netaddress: Ipv4Addr::from(na as u32),
             listenport: row.get("listenport")?,
@@ -489,6 +505,14 @@ fn query_user_private(q: QueryUser, db: &Connection) -> Result<PrivateUserConfig
     })?)
 }
 
+fn insert_state(id: &Uuid, if_name: &str, db: &Connection) -> Result<(), rusqlite::Error> {
+    db.execute(
+        "INSERT INTO state (runId, interface) VALUES (?, ?)",
+        (id.to_string(), if_name),
+    )?;
+    Ok(())
+}
+
 pub fn process_message(m: WgmdMessages, db: &Connection) -> Result<WgmdAnswer, WgmdError> {
     debug!("> {:?}", m);
 
@@ -500,11 +524,8 @@ pub fn process_message(m: WgmdMessages, db: &Connection) -> Result<WgmdAnswer, W
             .map(|id| WgmdAnswer::AddInterfaceId(CreateAnswer { data: id })),
         WgmdMessages::QueryAllInterfaces => get_all_interfaces_public(db)
             .map(|rows| WgmdAnswer::QueryAllInterfaces(QueryAllInterfacesAnswer { data: rows })),
-        WgmdMessages::QueryInterface(id) => {
-            get_single_interface_public(id.id, db).map(|r| {
-                WgmdAnswer::QuerySingleInterface(QuerySingleInterfaceAnswer { data: r })
-            })
-        }
+        WgmdMessages::QueryInterface(id) => get_single_interface_public(id.id, db)
+            .map(|r| WgmdAnswer::QuerySingleInterface(QuerySingleInterfaceAnswer { data: r })),
         WgmdMessages::AddUser(req) => add_user_to_interface(req, db)
             .map(|id| WgmdAnswer::AddUserId(CreateAnswer { data: id })),
         WgmdMessages::RemoveUser(req) => {
@@ -514,14 +535,11 @@ pub fn process_message(m: WgmdMessages, db: &Connection) -> Result<WgmdAnswer, W
             .map(|data| WgmdAnswer::QuerySingleUser(QuerySingleUserAnswer { data })),
         WgmdMessages::Export => {
             let data = get_all_interfaces_private(db)?;
+            let run_id = Uuid::new_v4();
 
             for c in data {
-                wg_quick_down(&c.if_name)?;
-                fs::write(
-                    format!("/etc/wireguard/{}.conf", c.if_name),
-                    c.to_wireguard_config().unwrap(),
-                )?;
-                wg_quick_up(&c.if_name)?;
+                //insert_state(&c.if_name, &db)?;
+                reapply_config(&c)?;
             }
             Ok(WgmdAnswer::StatusOk)
         }
@@ -540,6 +558,14 @@ pub fn process_message(m: WgmdMessages, db: &Connection) -> Result<WgmdAnswer, W
     };
     debug!("< {:?}", result);
     result
+}
+
+fn reapply_config(c: &InterfaceConfig) -> io::Result<()> {
+    let path = format!("/var/lib/wgmd/configs/{}.conf", c.if_name);
+    wg_quick_down(&path)?;
+    fs::write(&path, c.to_wireguard_config().unwrap())?;
+    wg_quick_up(&path)?;
+    Ok(())
 }
 
 #[cfg(test)]
