@@ -65,13 +65,27 @@ export const UsersApi = () => {
         return c.redirect(redirect)
     })
 
-    /*router.get("/:user/client", (c) => {
+    router.get("/:user/client", async (c) => {
+        const socket = c.get("socket");
         const interfaceId = parseInt(c.req.param("id")!);
         const userId = parseInt(c.req.param("user")!);
         console.log(userId, interfaceId)
-        const data = getUserFromInterface(db, interfaceId, userId, true)
-        return c.text(writeOutWireguardClientConfig(data))
-    })*/
+        //const data = getUserFromInterface(db, interfaceId, userId, true)
+        //return c.text(writeOutWireguardClientConfig(data))
+        const data = await socket.exportClient({
+            interface_id: interfaceId as unknown as bigint,
+            user_id: userId as unknown as bigint,
+        })
+
+        if (data.type !== "client_cert") return c.html(<h1>Error</h1>)
+
+        return new Response(data.data, {
+            headers: {
+                "Content-Type": "text/plain; charset=utf-8",
+                "Content-Disposition": 'attachment; filename="client.conf"',
+            },
+        });
+    })
 
     router.delete("/:user", async (c) => {
         const socket = c.get("socket");

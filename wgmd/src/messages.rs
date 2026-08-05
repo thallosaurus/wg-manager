@@ -13,7 +13,7 @@ use crate::interfaces::{wg_make_privkey, wg_make_psk, wg_make_pubkey, wg_quick_d
 #[derive(Serialize, Deserialize, Debug, Clone)]
 //#[ts(export, export_to = "messages.ts")]
 pub struct PrivateUserConfig {
-    name: String,
+    //name: String,
     pubkey: String,
     hostPubkey: String,
     privkey: String,
@@ -24,9 +24,20 @@ pub struct PrivateUserConfig {
 }
 
 impl PrivateUserConfig {
-    pub fn to_wireguard_config(&self) -> String {
+    pub fn to_wireguard_config(&self) -> Result<String, fmt::Error> {
         let mut c = String::new();
-        writeln!(c, "[Interface]");
+        writeln!(c, "[Interface]")?;
+        writeln!(c, "Address = {}", Ipv4Addr::from(self.address))?;
+        //writeln!(c, "ListenPort = {}", 5);
+        writeln!(c, "PrivateKey = {}",self.privkey)?;
+        writeln!(c, "[Peer]")?;
+        writeln!(c, "PublicKey = {}", self.hostPubkey)?;
+        writeln!(c, "PresharedKey = {}", self.psk)?;
+        writeln!(c, "AllowedIPs = {}", Ipv4Addr::from(self.address))?;
+        writeln!(c, "PersistentKeepalive = {}", 30)?;
+        writeln!(c, "Endpoint = {}", self.endpoint)?;
+        //writeln!(c, "PrivateKey = {}",self.privkey);
+        //writeln!(c, "MTU = {}",self.mtu);
         /*
         Address = ${new IPv4(d.ip).toString()}/32
 ListenPort = 54654
@@ -41,7 +52,7 @@ AllowedIPs = ${new IPv4(d.ip).toString()}/32
 PersistentKeepalive = 30
 Endpoint = ${d.endpoint}:${d.port}`
          */
-        c
+        Ok(c)
     }
 }
 
@@ -157,9 +168,9 @@ pub enum WgmdMessages {
 
 #[derive(Serialize, Deserialize, Debug, TS)]
 #[ts(export, export_to = "messages.ts")]
-struct ExportClientRequest {
-    interface_id: i64,
-    user_id: i64
+pub struct ExportClientRequest {
+    pub interface_id: i64,
+    pub user_id: i64
 }
 
 #[derive(Serialize, Deserialize, Debug, TS)]
@@ -279,7 +290,7 @@ pub fn process_message(m: WgmdMessages, db: &Connection) -> WgmdAnswer {
         }
         WgmdMessages::ExportClient(export_client_request) => {
             let query = query_user_private(QueryUser { user_id: export_client_request.user_id, interface_id: export_client_request.interface_id }, db).unwrap();
-            WgmdAnswer::ClientExport { data: query.to_wireguard_config() }
+            WgmdAnswer::ClientExport { data: query.to_wireguard_config().unwrap() }
         },
             }
 }
@@ -501,7 +512,7 @@ fn query_user_private(q: QueryUser, db: &Connection) -> Result<PrivateUserConfig
         let addr: u32 = row.get_unwrap("address");
         Ok(PrivateUserConfig {
             //id: q.user_id,
-            name: row.get_unwrap("name"),
+            //name: row.get_unwrap("name"),
             address: addr as u32,
             pubkey: row.get_unwrap("userPubkey"),
             hostPubkey: row.get_unwrap("hostPubkey"),

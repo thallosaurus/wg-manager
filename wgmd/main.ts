@@ -1,4 +1,4 @@
-import type { AddInterfaceRequest, AddUserRequest, RemoveInterfaceRequest, RemoveUserRequest, WgmdAnswer, WgmdMessages } from "./bindings/messages.ts"
+import type { AddInterfaceRequest, AddUserRequest, RemoveInterfaceRequest, RemoveUserRequest, WgmdAnswer, WgmdMessages, ExportClientRequest } from "./bindings/messages.ts"
 export * from "./bindings/messages.ts"
 
 export class SocketConnection {
@@ -54,6 +54,10 @@ export class SocketConnection {
 
     async export() {
         return await this.#sendMessage({ type: "export" })
+    }
+
+    async exportClient(req: ExportClientRequest) {
+        return await this.#sendMessage({ type: "export_client", ...req })
     }
 
     async #sendMessage(m: WgmdMessages): Promise<WgmdAnswer> {

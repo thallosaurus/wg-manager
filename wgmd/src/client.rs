@@ -5,8 +5,7 @@ use tokio::{
 };
 
 use crate::messages::{
-    AddInterfaceRequest, AddUserRequest, QueryInterface, QueryUser, RemoveInterfaceRequest,
-    RemoveUserRequest, WgmdAnswer, WgmdMessages,
+    AddInterfaceRequest, AddUserRequest, ExportClientRequest, QueryInterface, QueryUser, RemoveInterfaceRequest, RemoveUserRequest, WgmdAnswer, WgmdMessages,
 };
 
 type Answer = io::Result<WgmdAnswer>;
@@ -52,6 +51,10 @@ impl SocketConnection {
 
     pub async fn export(&self) -> Answer {
         self.send(WgmdMessages::Export).await
+    }
+
+    pub async fn export_client(&self, req: ExportClientRequest) -> Answer {
+        self.send(WgmdMessages::ExportClient(req)).await
     }
 
     async fn send(&self, msg: WgmdMessages) -> Answer {

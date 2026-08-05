@@ -14,7 +14,7 @@ use tracing::{debug, error, info};
 use crate::messages::{WgmdMessages, process_message};
 
 mod interfaces;
-mod messages;
+pub mod messages;
 pub mod client;
 
 const DB_QUERY: &str = include_str!("../database.sql");
