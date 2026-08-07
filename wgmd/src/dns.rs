@@ -63,7 +63,7 @@ impl DnsmasqHost {
 
 #[derive(Debug)]
 pub struct Dnsmasq {
-    pub stop: mpsc::Sender<()>,
+    stop: mpsc::Sender<()>,
     pid: Option<u32>,
 }
 
