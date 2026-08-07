@@ -1,4 +1,4 @@
-use core::fmt;
+ use core::fmt;
 use std::{
     fmt::Write, format, fs, io, net::Ipv4Addr, str::Utf8Error, string::FromUtf8Error, sync::Arc, writeln,
 };
@@ -86,16 +86,13 @@ impl InterfaceConfig {
         writeln!(c, "PrivateKey = {}", self.private_key.trim())?;
         writeln!(c, "MTU = {}", self.mtu)?;
         writeln!(c, "Table = off")?;
-        writeln!(c, "PostUp = iptables -A FORWARD -i %i -j ACCEPT")?;
-        writeln!(
-            c,
-            "PostUp = iptables -t nat -A POSTROUTING -o eth0 -j MASQUERADE"
-        )?;
-        writeln!(c, "PostDown = iptables -D FORWARD -i %i -j ACCEPT")?;
-        writeln!(
-            c,
-            "PostDown = iptables -t nat -D POSTROUTING -o eth0 -j MASQUERADE"
-        )?;
+        //writeln!(c, "PostUp = iptables -A FORWARD -i %i -j ACCEPT")?;
+        writeln!(c, "PostUp = iptables -A FORWARD -s {}/{} -o eth0 -j ACCEPT", self.address, self.subnet)?;
+        //writeln!(c, "PostUp = iptables -t nat -A POSTROUTING -o eth0 -j MASQUERADE")?;
+        writeln!(c, "PostUp = iptables -t nat -A POSTROUTING -s {}/{} -o eth0 -j MASQUERADE", self.address, self.subnet)?;
+        //writeln!(c, "PostDown = iptables -D FORWARD -i %i -j ACCEPT")?;
+        writeln!(c, "PostDown = iptables -D FORWARD -s {}/{} -o eth0 -j ACCEPT", self.address, self.subnet)?;
+        writeln!(c, "PostDown = iptables -t nat -D POSTROUTING -s {}/{} -o eth0 -j MASQUERADE", self.address, self.subnet)?;
 
         for u in self.users.clone() {
             let ip = Ipv4Addr::from(u.address);
