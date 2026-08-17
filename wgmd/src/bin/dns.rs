@@ -1,12 +1,13 @@
 use tokio::signal::unix::{SignalKind, signal};
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
-use wgmd::dns::run_dnsmasq;
+use wgmd::dns::{DnsmasqHost, run_dnsmasq};
 
 #[tokio::main]
 async fn main() {
     init_tracing();
-    let dns = run_dnsmasq("wg0").unwrap();
-    println!("{:?}", dns);
+    let host = DnsmasqHost::new();
+    //let dns = run_dnsmasq("wg0").unwrap();
+    //println!("{:?}", dns);
 
     let mut sigterm = signal(SignalKind::interrupt()).unwrap();
 

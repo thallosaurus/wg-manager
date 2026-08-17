@@ -1,4 +1,4 @@
-use std::io;
+use std::{io, thread};
 
 use rusqlite::Connection;
 use tokio::{
@@ -26,6 +26,7 @@ fn get_active_dns_servers(db: &Connection) -> Result<Vec<String>, rusqlite::Erro
 
 pub struct DnsmasqHost {
     instances: Vec<Dnsmasq>,
+    
 }
 
 impl DnsmasqHost {
@@ -69,7 +70,7 @@ pub struct Dnsmasq {
 
 //pub fn export_config()
 
-pub fn run_dnsmasq(if_name: &str) -> io::Result<Dnsmasq> {
+pub fn run_dnsmasq() -> io::Result<Dnsmasq> {
     let (stop, mut rx) = mpsc::channel::<()>(1);
 
     let mut cmd = Command::new("dnsmasq")
