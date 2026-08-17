@@ -97,7 +97,7 @@ pub fn run_dnsmasq(if_name: &str) -> io::Result<Dnsmasq> {
 }
 
 impl Dnsmasq {
-    pub fn stop(&self) {
-        self.stop.blocking_send(()).unwrap();
+    pub async fn stop(&self) {
+        self.stop.send(()).await.unwrap();
     }
 }

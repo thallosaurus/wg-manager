@@ -39,7 +39,7 @@ impl PrivateUserConfig {
         writeln!(c, "PresharedKey = {}", self.psk)?;
         writeln!(c, "AllowedIPs = {}", Ipv4Addr::from(self.address))?;
         writeln!(c, "PersistentKeepalive = {}", 30)?;
-        writeln!(c, "Endpoint = {}", self.endpoint)?;
+        writeln!(c, "Endpoint = {}:{}", self.endpoint, self.listenport)?;
         Ok(c)
     }
 }
@@ -100,7 +100,7 @@ impl InterfaceConfig {
             writeln!(c, "[Peer]")?;
             writeln!(c, "PublicKey = {}", u.pubkey.trim())?;
             writeln!(c, "PresharedKey = {}", u.psk.trim())?;
-            writeln!(c, "AllowedIPs = {}", ip.to_string())?;
+            writeln!(c, "AllowedIPs = {}/32", ip.to_string())?;
             writeln!(c, "")?;
         }
         Ok(c)
