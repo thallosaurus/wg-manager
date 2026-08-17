@@ -1,6 +1,7 @@
- use core::fmt;
+use core::fmt;
 use std::{
-    fmt::Write, format, fs, io, net::Ipv4Addr, str::Utf8Error, string::FromUtf8Error, sync::Arc, writeln,
+    fmt::Write, format, fs, io, net::Ipv4Addr, str::Utf8Error, string::FromUtf8Error, sync::Arc,
+    writeln,
 };
 
 use ipnet::Ipv4Net;
@@ -12,7 +13,10 @@ use tracing::debug;
 use ts_rs::TS;
 use uuid::Uuid;
 
-use crate::{dns::{CONFIG_HEADER, DnsmasqHost}, interfaces::{wg_make_privkey, wg_make_psk, wg_make_pubkey, wg_quick_down, wg_quick_up}};
+use crate::{
+    dns::{CONFIG_HEADER, DnsmasqHost},
+    interfaces::{wg_make_privkey, wg_make_psk, wg_make_pubkey, wg_quick_down, wg_quick_up},
+};
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 //#[ts(export, export_to = "messages.ts")]
@@ -23,8 +27,10 @@ pub struct PrivateUserConfig {
     privkey: String,
     psk: String,
     address: u32,
+    netaddress: u32,
     endpoint: String,
     listenport: u16,
+    network_mask: u8
 }
 
 impl PrivateUserConfig {
@@ -33,11 +39,11 @@ impl PrivateUserConfig {
         writeln!(c, "[Interface]")?;
         writeln!(c, "Address = {}", Ipv4Addr::from(self.address))?;
         //writeln!(c, "ListenPort = {}", 5);
-        writeln!(c, "PrivateKey = {}", self.privkey)?;
+        writeln!(c, "PrivateKey = {}", self.privkey.trim())?;
         writeln!(c, "[Peer]")?;
-        writeln!(c, "PublicKey = {}", self.host_pubkey)?;
-        writeln!(c, "PresharedKey = {}", self.psk)?;
-        writeln!(c, "AllowedIPs = {}", Ipv4Addr::from(self.address))?;
+        writeln!(c, "PublicKey = {}", self.host_pubkey.trim())?;
+        writeln!(c, "PresharedKey = {}", self.psk.trim())?;
+        writeln!(c, "AllowedIPs = {}/{}", Ipv4Addr::from(self.netaddress), self.network_mask)?;
         writeln!(c, "PersistentKeepalive = {}", 30)?;
         writeln!(c, "Endpoint = {}:{}", self.endpoint, self.listenport)?;
         Ok(c)
@@ -56,7 +62,7 @@ pub struct UserConfig {
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct DnsConfig {
     name: String,
-    ip: Ipv4Addr
+    ip: Ipv4Addr,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -73,7 +79,7 @@ pub struct InterfaceConfig {
     public_key: String,
     endpoint: String,
     users: Vec<UserConfig>,
-    dns: Vec<DnsConfig>
+    dns: Vec<DnsConfig>,
 }
 
 impl InterfaceConfig {
@@ -87,12 +93,28 @@ impl InterfaceConfig {
         writeln!(c, "MTU = {}", self.mtu)?;
         writeln!(c, "Table = off")?;
         //writeln!(c, "PostUp = iptables -A FORWARD -i %i -j ACCEPT")?;
-        writeln!(c, "PostUp = iptables -A FORWARD -s {}/{} -o eth0 -j ACCEPT", self.address, self.subnet)?;
+        writeln!(
+            c,
+            "PostUp = iptables -A FORWARD -s {}/{} -o eth0 -j ACCEPT",
+            self.address, self.subnet
+        )?;
         //writeln!(c, "PostUp = iptables -t nat -A POSTROUTING -o eth0 -j MASQUERADE")?;
-        writeln!(c, "PostUp = iptables -t nat -A POSTROUTING -s {}/{} -o eth0 -j MASQUERADE", self.address, self.subnet)?;
+        writeln!(
+            c,
+            "PostUp = iptables -t nat -A POSTROUTING -s {}/{} -o eth0 -j MASQUERADE",
+            self.address, self.subnet
+        )?;
         //writeln!(c, "PostDown = iptables -D FORWARD -i %i -j ACCEPT")?;
-        writeln!(c, "PostDown = iptables -D FORWARD -s {}/{} -o eth0 -j ACCEPT", self.address, self.subnet)?;
-        writeln!(c, "PostDown = iptables -t nat -D POSTROUTING -s {}/{} -o eth0 -j MASQUERADE", self.address, self.subnet)?;
+        writeln!(
+            c,
+            "PostDown = iptables -D FORWARD -s {}/{} -o eth0 -j ACCEPT",
+            self.address, self.subnet
+        )?;
+        writeln!(
+            c,
+            "PostDown = iptables -t nat -D POSTROUTING -s {}/{} -o eth0 -j MASQUERADE",
+            self.address, self.subnet
+        )?;
 
         for u in self.users.clone() {
             let ip = Ipv4Addr::from(u.address);
@@ -328,9 +350,20 @@ pub struct RemoveInterfaceRequest {
     id: i64,
 }
 
+/// Generates Interface Keys and inserts them into the database
 fn insert_interface(conf: AddInterfaceRequest, db: &Connection) -> Result<i64, WgmdError> {
-    let private_key = wg_make_privkey()?;
-    let public_key = wg_make_pubkey(&private_key)?;
+    let privkey = wg_make_privkey()?;
+    let pubkey = wg_make_pubkey(&privkey)?;
+    insert_interface_with_keys(conf, privkey, pubkey, db)
+}
+
+/// Inserts Interface with option to specify keys explicitly
+fn insert_interface_with_keys(
+    conf: AddInterfaceRequest,
+    privkey: Vec<u8>,
+    pubkey: Vec<u8>,
+    db: &Connection,
+) -> Result<i64, WgmdError> {
     let netaddress = Ipv4Net::new(conf.address, conf.subnet).unwrap();
 
     db.execute(
@@ -339,8 +372,8 @@ fn insert_interface(conf: AddInterfaceRequest, db: &Connection) -> Result<i64, W
             conf.if_name,
             u32::from(conf.address),
             conf.endpoint,
-            String::from_utf8(private_key).unwrap().trim(),
-            String::from_utf8(public_key).unwrap().trim(),
+            String::from_utf8(privkey).unwrap().trim(),
+            String::from_utf8(pubkey).unwrap().trim(),
             conf.mtu,
             conf.subnet,
             u32::from(netaddress.network()),
@@ -376,7 +409,7 @@ fn get_all_interfaces_private(db: &Connection) -> Result<Vec<InterfaceConfig>, W
             public_key: pubkey.trim().to_string(),
             endpoint: row.get("endpoint")?,
             users: serde_json::from_str(&v)?,
-            dns: serde_json::from_str(&dns)?
+            dns: serde_json::from_str(&dns)?,
         });
     }
 
@@ -471,18 +504,30 @@ fn delete_interface(conf: RemoveInterfaceRequest, db: &Connection) -> Result<(),
 }
 
 fn add_user_to_interface(conf: AddUserRequest, db: &Connection) -> Result<i64, WgmdError> {
+    let privkey = wg_make_privkey()?;
+    let pubkey = wg_make_pubkey(&privkey)?;
+    let psk = wg_make_psk()?;
+
+    add_user_to_interface_with_keys(conf, privkey, pubkey, psk, db)
+}
+
+fn add_user_to_interface_with_keys(
+    conf: AddUserRequest,
+    privkey: Vec<u8>,
+    pubkey: Vec<u8>,
+    psk: Vec<u8>,
+    db: &Connection,
+) -> Result<i64, WgmdError> {
     //let if_priv = get_interface_private_key(conf.interface_id, db)?;
-    let client_privkey = wg_make_privkey()?;
-    let client_pubkey = wg_make_pubkey(&client_privkey)?;
-    let client_psk = wg_make_psk()?;
+    //let client_psk = wg_make_psk()?;
 
     db.execute("INSERT INTO users (interface_id, name, allowed_ip, publicKey, psk, privateKey) VALUES (?, ?, ?, ?, ?, ?)", (
         conf.interface_id,
         conf.username,
         u32::from(conf.address),
-        String::from_utf8(client_pubkey)?,
-        String::from_utf8(client_privkey)?,
-        String::from_utf8(client_psk)?,
+        String::from_utf8(pubkey)?,
+        String::from_utf8(psk)?,
+        String::from_utf8(privkey)?,
     ))?;
     Ok(db.last_insert_rowid())
 }
@@ -508,24 +553,32 @@ fn query_user(q: QueryUser, db: &Connection) -> Result<PublicUserConfig, WgmdErr
 }
 
 fn query_user_private(q: QueryUser, db: &Connection) -> Result<PrivateUserConfig, WgmdError> {
-    Ok(db.query_one("SELECT u.allowed_ip as address, u.privateKey, i.pubkey as hostPubkey, u.publicKey as userPubkey, u.psk, i.endpoint, i.listenport FROM users u LEFT JOIN interfaces i ON u.interface_id = i.id WHERE u.interface_id = ? AND u.id = ?",
+    Ok(db.query_one("SELECT u.allowed_ip as address, u.privateKey as userPrivatekey, i.pubkey as hostPubkey, u.publicKey as userPubkey, u.psk, i.endpoint, i.netmask, i.listenport, i.netaddress FROM users u LEFT JOIN interfaces i ON u.interface_id = i.id WHERE u.interface_id = ? AND u.id = ?",
     (q.interface_id, q.user_id), |row| {
         let addr: u32 = row.get("address")?;
+        let netaddr: u32 = row.get("netaddress")?;
+        println!("{:?}", row);
         Ok(PrivateUserConfig {
             //id: q.user_id,
             //name: row.get_unwrap("name"),
+            netaddress: netaddr as u32,
             address: addr as u32,
             pubkey: row.get("userPubkey")?,
             host_pubkey: row.get("hostPubkey")?,
             psk: row.get("psk")?,
-            privkey: row.get("privatekey")?,
+            privkey: row.get("userPrivatekey")?,
             endpoint: row.get("endpoint")?,
             listenport: row.get("listenport")?,
+            network_mask: row.get("netmask")?,
         })
     })?)
 }
 
-pub fn process_message(m: WgmdMessages, db: &Connection, dns: &mut DnsmasqHost) -> Result<WgmdAnswer, WgmdError> {
+pub fn process_message(
+    m: WgmdMessages,
+    db: &Connection,
+    dns: &mut DnsmasqHost,
+) -> Result<WgmdAnswer, WgmdError> {
     debug!("> {:?}", m);
 
     let result = match m {
@@ -540,7 +593,9 @@ pub fn process_message(m: WgmdMessages, db: &Connection, dns: &mut DnsmasqHost) 
             .map(|r| WgmdAnswer::QuerySingleInterface(QuerySingleInterfaceAnswer { data: r })),
         WgmdMessages::AddUser(req) => add_user_to_interface(req, db)
             .map(|id| WgmdAnswer::AddUserId(CreateAnswer { data: id })),
-        WgmdMessages::RemoveUser(req) => remove_user_from_interface(req, db).map(|_| WgmdAnswer::StatusOk),
+        WgmdMessages::RemoveUser(req) => {
+            remove_user_from_interface(req, db).map(|_| WgmdAnswer::StatusOk)
+        }
         WgmdMessages::QueryUser(q) => query_user(q, db)
             .map(|data| WgmdAnswer::QuerySingleUser(QuerySingleUserAnswer { data })),
         WgmdMessages::Export => {
@@ -591,9 +646,10 @@ fn reapply_config(c: &InterfaceConfig) -> io::Result<()> {
 mod tests {
     use std::net::Ipv4Addr;
 
-    use crate::messages::{
-        AddInterfaceRequest, AddUserRequest, RemoveInterfaceRequest, add_user_to_interface,
-        delete_interface, get_single_interface_public, insert_interface,
+    use crate::{
+        interfaces::{wg_make_privkey, wg_make_psk, wg_make_pubkey}, messages::{
+            AddInterfaceRequest, AddUserRequest, QueryUser, RemoveInterfaceRequest, add_user_to_interface, add_user_to_interface_with_keys, delete_interface, get_single_interface_public, insert_interface, insert_interface_with_keys, query_user_private,
+        },
     };
     use rusqlite::Connection;
 
@@ -749,5 +805,87 @@ mod tests {
         let res = insert_interface(conf2, &db);
         assert!(res.is_err());
         eprintln!("{:?}", res.err().unwrap())
+    }
+
+    #[test]
+    fn test_keys() {
+        let db = debug_database();
+
+        // Test Endpoint
+        let conf = AddInterfaceRequest {
+            if_name: "test0".to_string(),
+            address: Ipv4Addr::new(172, 16, 0, 1),
+            endpoint: "vpn.example.net".to_string(),
+            mtu: 1420,
+            subnet: 24,
+            port: 12345,
+        };
+        // Endpoint Keys
+        let s_privkey = wg_make_privkey().unwrap();
+        let s_pubkey = wg_make_pubkey(&s_privkey).unwrap();
+        let s_privkey_str = String::from_utf8(s_privkey.clone()).unwrap();
+        let s_pubkey_str = String::from_utf8(s_pubkey.clone()).unwrap();
+
+        let interface_id = insert_interface_with_keys(conf, s_privkey, s_pubkey, &db).unwrap();
+
+        // Client Keys
+        let privkey = wg_make_privkey().unwrap();
+        let pubkey = wg_make_pubkey(&privkey).unwrap();
+        let psk = wg_make_psk().unwrap();
+        let privkey_str = String::from_utf8(privkey.clone()).unwrap();
+        let pubkey_str = String::from_utf8(pubkey.clone()).unwrap();
+        let psk_str = String::from_utf8(psk.clone()).unwrap();
+
+        let user_id = add_user_to_interface_with_keys(
+            AddUserRequest {
+                interface_id: interface_id,
+                username: "testuser".to_string(),
+                address: Ipv4Addr::new(172, 16, 0, 2),
+            },
+            privkey,
+            pubkey,
+            psk,
+            &db,
+        ).unwrap();
+
+        let expected_user_config = format!(
+            "[Interface]
+Address = 172.16.0.2
+PrivateKey = {}
+[Peer]
+PublicKey = {}
+PresharedKey = {}
+AllowedIPs = 172.16.0.0/24
+PersistentKeepalive = 30
+Endpoint = vpn.example.net:12345
+",
+            privkey_str.trim(), s_pubkey_str.trim(), psk_str.trim()
+        );
+
+        let user = query_user_private(
+            QueryUser {
+                user_id: user_id,
+                interface_id: interface_id,
+            },
+            &db,
+        ).unwrap();
+
+        println!("Results:
+        Server Keys:
+        Public: {},
+        Private: {},
+
+        Client Keys:
+        Public: {},
+        Private: {},
+        PSK: {}
+
+        left is generated, right is expected config
+        ", s_pubkey_str.trim(), s_privkey_str.trim(), pubkey_str.trim(), privkey_str.trim(), psk_str.trim());
+
+        let conf_real = user.to_wireguard_config().unwrap();
+
+        assert_eq!(conf_real.len(), expected_user_config.len());
+        assert_eq!(conf_real, expected_user_config);
     }
 }
