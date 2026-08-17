@@ -58,7 +58,7 @@ struct WireguardInterfaceManager {
     interface_names: Vec<String>
 }
 
-impl WireguardInterfaceManager {
+/*impl WireguardInterfaceManager {
     pub fn init() -> io::Result<Self> {
         Ok(Self {
             interface_names: wg_get_interfaces()?
@@ -72,4 +72,4 @@ impl Iterator for WireguardInterfaceManager {
     fn next(&mut self) -> Option<Self::Item> {
 
     }
-}
+}*/
