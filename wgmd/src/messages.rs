@@ -1,6 +1,6 @@
 use core::fmt;
 use std::{
-    fmt::Write, format, fs, io, net::Ipv4Addr, str::Utf8Error, string::FromUtf8Error, sync::Arc,
+    fmt::Write, format, fs, io, net::Ipv4Addr, string::FromUtf8Error, sync::Arc,
     writeln,
 };
 
@@ -11,7 +11,6 @@ use serde_json::Value;
 use tokio::sync::Mutex;
 use tracing::debug;
 use ts_rs::TS;
-use uuid::Uuid;
 
 use crate::{
     dns::{DnsmasqHost, insert_dns_root},
