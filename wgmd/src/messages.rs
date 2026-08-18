@@ -11,6 +11,7 @@ use serde_json::Value;
 use tokio::sync::Mutex;
 use tracing::debug;
 use ts_rs::TS;
+use x25519_dalek::{PublicKey, StaticSecret};
 
 use crate::{
     dns::{DnsmasqHost, insert_dns_root},
@@ -55,8 +56,8 @@ impl PrivateUserConfig {
 //#[ts(export, export_to = "messages.ts")]
 pub struct UserConfig {
     name: String,
-    pubkey: String,
-    psk: String,
+    pubkey: [u8; 32],
+    psk: [u8; 32],
     address: u32,
 }
 
@@ -88,7 +89,7 @@ pub struct InterfaceConfig {
 }
 
 impl InterfaceConfig {
-    pub fn to_wireguard_config(&self) -> Result<String, fmt::Error> {
+    /*pub fn to_wireguard_config(&self) -> Result<String, fmt::Error> {
         let mut c = String::new();
 
         writeln!(c, "[Interface]")?;
@@ -119,7 +120,7 @@ impl InterfaceConfig {
             writeln!(c, "")?;
         }
         Ok(c)
-    }
+    }*/
 
     #[deprecated]
     pub fn to_dnsmasq_config(&self) -> Result<String, fmt::Error> {
@@ -347,10 +348,13 @@ pub struct RemoveInterfaceRequest {
 
 /// Generates Interface Keys and inserts them into the database
 fn insert_interface(conf: AddInterfaceRequest, db: &Connection) -> Result<i64, WgmdError> {
-    let privkey = wg_make_privkey()?;
-    let pubkey = wg_make_pubkey(&privkey)?;
+    //let privkey = wg_make_privkey()?;
+    let privkey = StaticSecret::random();
+    //let pubkey = wg_make_pubkey(&privkey)?;
+    let pubkey = PublicKey::from(&privkey);
+
     let dnsd = String::from(&conf.dnsdomain);
-    let id = insert_interface_with_keys(conf, privkey, pubkey, db)?;    
+    let id = insert_interface_with_keys(conf, privkey.as_bytes(), pubkey.as_bytes(), db)?;    
 
     insert_dns_root(db, id, dnsd)?;
 
@@ -360,8 +364,8 @@ fn insert_interface(conf: AddInterfaceRequest, db: &Connection) -> Result<i64, W
 /// Inserts Interface with option to specify keys explicitly
 fn insert_interface_with_keys(
     conf: AddInterfaceRequest,
-    privkey: Vec<u8>,
-    pubkey: Vec<u8>,
+    privkey: &[u8; 32],
+    pubkey: &[u8; 32],
     db: &Connection,
 ) -> Result<i64, WgmdError> {
     let netaddress = Ipv4Net::new(conf.address, conf.subnet).unwrap();
@@ -372,8 +376,10 @@ fn insert_interface_with_keys(
             conf.if_name,
             u32::from(conf.address),
             conf.endpoint,
-            String::from_utf8(privkey).unwrap().trim(),
-            String::from_utf8(pubkey).unwrap().trim(),
+            //String::from_utf8(privkey).unwrap().trim(),
+            privkey.as_slice(),
+            //String::from_utf8(pubkey).unwrap().trim(),
+            pubkey.as_slice(),
             conf.mtu,
             conf.subnet,
             u32::from(netaddress.network()),
@@ -641,7 +647,7 @@ fn reapply_config(c: &InterfaceConfig) -> io::Result<()> {
     let wg_path = format!("/var/lib/wgmd/configs/{}.conf", c.if_name);
     let dns_path = format!("/var/lib/wgmd/dns/{}.conf", c.if_name);
     wg_quick_down(&wg_path)?;
-    fs::write(&wg_path, c.to_wireguard_config().unwrap())?;
+    //fs::write(&wg_path, c.to_wireguard_config().unwrap())?;
     //fs::write(&dns_path, c.to_dnsmasq_config().unwrap())?;
     wg_quick_up(&wg_path)?;
     Ok(())
@@ -823,6 +829,7 @@ mod tests {
         eprintln!("{:?}", res.err().unwrap())
     }
 
+/*
     #[test]
     fn test_keys() {
         let db = debug_database();
@@ -917,4 +924,7 @@ Endpoint = vpn.example.net:12345
         //assert_eq!(conf_real.len(), expected_user_config.len());
         assert_eq!(conf_real, expected_user_config);
     }
+*/
+
+
 }

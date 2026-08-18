@@ -18,7 +18,7 @@ use tracing::{error, info};
 
 pub mod client;
 pub mod dns;
-mod interfaces;
+pub mod interfaces;
 pub mod messages;
 
 const DB_QUERY: &str = include_str!("../database.sql");

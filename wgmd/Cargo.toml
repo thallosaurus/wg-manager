@@ -4,7 +4,9 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
+base64 = "0.23.1"
 ctrlc = "3.5.2"
+defguard_wireguard_rs = "0.11.1"
 ipnet = "2.12.1"
 rusqlite = { version = "0.40.1", features = ["bundled"] }
 serde = { version = "1.0.228", features = ["derive"] }
@@ -16,3 +18,4 @@ tracing-subscriber = { version = "0.3.23", features = ["env-filter"] }
 ts-rs = "12.0.1"
 users = "0.11.0"
 uuid = { version = "1.24.0", features = ["v4"] }
+x25519-dalek = "3.0.0"
