@@ -29,7 +29,7 @@ pub struct Wgmd;
 impl Wgmd {
     pub async fn listen(listener: &UnixListener, db: Connection) -> io::Result<()> {
         db.execute_batch(DB_QUERY).unwrap();
-        let dns = DnsmasqHost::new();
+        let dns = DnsmasqHost::from_db(&db)?;
         let dns_ref = Arc::new(Mutex::new(dns));
 
         let db_ref = Arc::new(Mutex::new(db));

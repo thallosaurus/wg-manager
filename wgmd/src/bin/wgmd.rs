@@ -30,15 +30,10 @@ async fn main() -> std::io::Result<()> {
     info!("Listening to {}", SOCKET_PATH);
     let db = Connection::open(DB_PATH).unwrap();
     info!("Open Database at path {}", DB_PATH);
-    
-    
-    let mut host = DnsmasqHost::from_db(&db)?;
-    info!("DNS Running");
 
     Wgmd::listen(&listener, db).await?;
 
     fs::remove_file(SOCKET_PATH)?;
-    host.stop_all_instances().await?;
 
     Ok(())
 }
