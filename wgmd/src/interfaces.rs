@@ -62,30 +62,6 @@ fn run_cmd_stdin(cmd: &str, args: &[&str], input: Option<&Vec<u8>>) -> io::Resul
     Ok(output.stdout)
 }
 
-struct WireguardInterface {
-    config: Option<InterfaceConfig>,
-}
-
-struct WireguardInterfaceManager {
-    interface_names: Vec<String>,
-}
-
-/*impl WireguardInterfaceManager {
-    pub fn init() -> io::Result<Self> {
-        Ok(Self {
-            interface_names: wg_get_interfaces()?
-        })
-    }
-}
-
-impl Iterator for WireguardInterfaceManager {
-    type Item = WireguardInterface;
-
-    fn next(&mut self) -> Option<Self::Item> {
-
-    }
-}*/
-
 /// MARK: - Refactoring with wireguard-rs
 pub fn convert_key(bytes: [u8; 32]) -> String {
     STANDARD.encode(bytes)
