@@ -14,7 +14,7 @@ use tokio::{
     net::{UnixListener, UnixStream},
     sync::Mutex,
 };
-use tracing::{debug, error, info};
+use tracing::{error, info};
 
 pub mod client;
 pub mod dns;
@@ -40,9 +40,6 @@ impl Wgmd {
             .unwrap();
 
         info!("Quitting...");
-        //drop(listener);
-        //fs::remove_file(path)?;
-
         Ok(())
     }
 

@@ -4,6 +4,9 @@ import { InterfaceView, MainView } from "./ui/Main.tsx";
 import { HTTPException } from "hono/http-exception";
 import { IPv4 } from "ip-num";
 
+import * as z from 'zod';
+import { zValidator } from '@hono/zod-validator';
+
 const SOCKET_PATH = "/var/run/wgmd.sock";
 
 type Env = {
@@ -25,19 +28,10 @@ export const ConfigRoutes = () => {
     return route;
 }
 
-const createUserCreationRequest = (interfaceId: number, data: FormData): AddUserRequest => {
-    if (!data.has("name")) throw new HTTPException(401, { message: "missing name" })
-    const name = data.get("name")!.toString();
-
-    if (!data.has("ip")) throw new HTTPException(401, { message: "missing client ip" })
-    const ip = new IPv4(data.get("ip")! as string);
-
-    return {
-        address: ip.toString(),
-        username: name,
-        interface_id: interfaceId as unknown as bigint
-    }
-}
+const AddUserSchema = z.object({
+    name: z.string(),
+    ip: z.string()
+})
 
 export const UsersApi = () => {
     const router = new Hono<Env>();
@@ -50,19 +44,28 @@ export const UsersApi = () => {
         if (data.type !== "query_user") return c.html(<h1>Error</h1>)
         return c.json(data.data)
     })
-    router.post("/", async (c) => {
+
+    router.post("/", zValidator("json", AddUserSchema), async (c) => {
         const socket = c.get("socket");
-        const interfaceId = parseInt(c.req.param("id")!);
-        const data = await c.req.formData();
-        const req = await createUserCreationRequest(interfaceId, data)
-        const res = await socket.addUser(req);
+        const data = c.req.valid("json");
+
+        const interface_id = parseInt(c.req.param("id")!);
+        //const data = await c.req.formData();
+        //const req = await createUserCreationRequest(interfaceId, data)
+        const res = await socket.addUser({
+            interface_id: BigInt(interface_id),
+            address: new IPv4(data.ip).toString(),
+            username: data.name
+        });
 
         console.log(res);
         if (res.type !== "add_user") return c.html(<h1>Error</h1>)
 
-        const redirect = data.has("redirect") ? ((data.get("redirect") as string) + interfaceId) : ("api/interface/" + interfaceId)
+            //c.req.query("redirect")
 
-        return c.redirect(redirect)
+        //const redirect = data.has("redirect") ? ((data.get("redirect") as string) + interfaceId) : ("api/interface/" + interfaceId)
+
+        //return c.redirect(redirect)
     })
 
     router.get("/:user/client", async (c) => {
@@ -105,33 +108,15 @@ export const UsersApi = () => {
     return router;
 }
 
-const createInterfaceCreationRequest = (data: FormData): AddInterfaceRequest => {
-    if (!data.has("name")) throw new HTTPException(401, { message: "missing name" })
-    const name = data.get("name")! as string;
-    if (!data.has("address")) throw new HTTPException(401, { message: "missing address" })
-    const address = data.get("address")! as string;
-    if (!data.has("endpoint")) throw new HTTPException(401, { message: "missing endpoint" })
-    const endpoint = data.get("endpoint")! as string;
-    if (!data.has("port")) throw new HTTPException(401, { message: "missing port" })
-    const port = parseInt(data.get("port")! as string);
-    if (!data.has("netmask")) throw new HTTPException(401, { message: "missing netmask" })
-    const netmask = parseInt(data.get("netmask")! as string);
-
-    if (!data.has("dnsdomain")) throw new HTTPException(401, { message: "missing dnsdomain" })
-    const dnsdomain = data.get("dnsdomain")! as string;
-    const addressIp = new IPv4(address);
-    const mtu = 1420;
-
-    return {
-        if_name: name,
-        address: addressIp.toString(),
-        endpoint,
-        mtu,
-        port,
-        subnet: netmask,
-        dnsdomain
-    }
-}
+const CreateInterfaceSchema = z.object({
+    name: z.string(),
+    address: z.string(),
+    endpoint: z.string(),
+    port: z.number(),
+    netmask: z.number(),
+    dnsdomain: z.string(),
+    mtu: z.number().default(1420)
+});
 
 export const InterfaceApi = () => {
     const app = new Hono<Env>();
@@ -142,17 +127,29 @@ export const InterfaceApi = () => {
         return c.json(data);
     });
 
-    app.post("/", async (c) => {
-        const socket = c.get("socket");
-        const data = await c.req.formData();
-        const request = await createInterfaceCreationRequest(data);
+    app.post("/",
+        zValidator('json', CreateInterfaceSchema),
+        async (c) => {
+            const socket = c.get("socket");
+            //const data = await c.req.formData();
+            //const request = await createInterfaceCreationRequest(data);
+            const data = c.req.valid("json");
 
-        const r = await socket.addInterface(request);
-        if (r.type !== "add_interface") return c.html(<h1>Error</h1>)
-        const redirect = data.has("redirect") ? ((data.get("redirect") as string) + r.data) : ("api/" + r.data)
-        c.status(201);
-        return c.redirect(redirect as string)
-    })
+            const r = await socket.addInterface({
+                "if_name": data.name,
+                "address": data.address,
+                "dnsdomain": data.dnsdomain,
+                "endpoint": data.endpoint,
+                "mtu": data.mtu,
+                "port": data.port,
+                "subnet": data.netmask
+            });
+
+            if (r.type !== "add_interface") return c.html(<h1>Error</h1>)
+            //const redirect = data.has("redirect") ? ((data.get("redirect") as string) + r.data) : ("api/" + r.data)
+            return c.status(201);
+            //return c.redirect(redirect as string)
+        })
 
     app.get("/:id", async (c) => {
         const socket = c.get("socket");

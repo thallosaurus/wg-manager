@@ -44,12 +44,7 @@ impl PrivateUserConfig {
         writeln!(c, "[Peer]")?;
         writeln!(c, "PublicKey = {}", self.host_pubkey.trim())?;
         writeln!(c, "PresharedKey = {}", self.psk.trim())?;
-        writeln!(
-            c,
-            "AllowedIPs = {}/{}",
-            Ipv4Addr::from(self.netaddress),
-            self.network_mask
-        )?;
+        writeln!(c, "AllowedIPs = {}/{}", Ipv4Addr::from(self.netaddress), self.network_mask)?;
         writeln!(c, "PersistentKeepalive = {}", 30)?;
         writeln!(c, "Endpoint = {}:{}", self.endpoint, self.listenport)?;
         Ok(c)
@@ -105,31 +100,11 @@ impl InterfaceConfig {
         //writeln!(c, "PostUp = iptables -A FORWARD -i %i -j ACCEPT")?;
         writeln!(c, "PostUp = iptables -N {}", chain_name(&self.if_name))?;
         writeln!(c, "PostUp = iptables -A FORWARD -i {} -s {}/{} -j {}", self.if_name, self.address, self.subnet, chain_name(&self.if_name))?;
+        writeln!(c, "PostUp = iptables -A {} -o eth0 -j ACCEPT", chain_name(&self.if_name))?;
+        writeln!(c, "PostUp = iptables -t nat -A POSTROUTING -s {}/{} -o eth0 -j MASQUERADE", self.address, self.subnet)?;
 
-        writeln!(
-            c,
-            "PostUp = iptables -A {} -o eth0 -j ACCEPT",
-            chain_name(&self.if_name)
-        )?;
-
-        writeln!(
-            c,
-            "PostUp = iptables -t nat -A POSTROUTING -s {}/{} -o eth0 -j MASQUERADE",
-            self.address, self.subnet
-        )?;
-
-        writeln!(
-            c,
-            "PostDown = iptables -D {} -o eth0 -j ACCEPT",
-            chain_name(&self.if_name)
-        )?;
-
-        writeln!(
-            c,
-            "PostDown = iptables -t nat -D POSTROUTING -s {}/{} -o eth0 -j MASQUERADE",
-            self.address, self.subnet
-        )?;
-
+        writeln!(c, "PostDown = iptables -D {} -o eth0 -j ACCEPT", chain_name(&self.if_name))?;
+        writeln!(c, "PostDown = iptables -t nat -D POSTROUTING -s {}/{} -o eth0 -j MASQUERADE", self.address, self.subnet)?;
         writeln!(c, "PostDown = iptables -F {}", chain_name(&self.if_name))?;
         writeln!(c, "PostDown = iptables -D FORWARD -i {} -s {}/{} -j {}", self.if_name, self.address, self.subnet, chain_name(&self.if_name))?;
         writeln!(c, "PostDown = iptables -X {}", chain_name(&self.if_name))?;
@@ -375,7 +350,7 @@ fn insert_interface(conf: AddInterfaceRequest, db: &Connection) -> Result<i64, W
     let privkey = wg_make_privkey()?;
     let pubkey = wg_make_pubkey(&privkey)?;
     let dnsd = String::from(&conf.dnsdomain);
-    let id = insert_interface_with_keys(conf, privkey, pubkey, db)?;
+    let id = insert_interface_with_keys(conf, privkey, pubkey, db)?;    
 
     insert_dns_root(db, id, dnsd)?;
 
@@ -894,6 +869,7 @@ mod tests {
         let expected_user_config = format!(
             "[Interface]
 Address = 172.16.0.2
+DNS = 172.16.0.1
 PrivateKey = {}
 [Peer]
 PublicKey = {}
@@ -938,7 +914,7 @@ Endpoint = vpn.example.net:12345
 
         let conf_real = user.to_wireguard_config().unwrap();
 
-        assert_eq!(conf_real.len(), expected_user_config.len());
+        //assert_eq!(conf_real.len(), expected_user_config.len());
         assert_eq!(conf_real, expected_user_config);
     }
 }

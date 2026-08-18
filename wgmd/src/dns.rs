@@ -2,10 +2,6 @@ use std::{
     collections::HashMap,
     io,
     net::Ipv4Addr,
-    sync::atomic::{
-        AtomicU32,
-        Ordering::{self, SeqCst},
-    },
 };
 
 use rusqlite::Connection;
@@ -47,15 +43,14 @@ fn get_active_dns_servers(db: &Connection) -> Result<Vec<DnsmasqRuntimeConfig>, 
 }
 
 pub struct DnsmasqHost {
-    instances: HashMap<u32, Dnsmasq>,
-    next_id: AtomicU32,
+    instances: HashMap<u32, Dnsmasq>
 }
 
 impl DnsmasqHost {
     pub fn new() -> Self {
         Self {
             instances: HashMap::new(),
-            next_id: AtomicU32::new(0),
+            //next_id: AtomicU32::new(0),
         }
     }
 
