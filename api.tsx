@@ -116,6 +116,9 @@ const createInterfaceCreationRequest = (data: FormData): AddInterfaceRequest => 
     const port = parseInt(data.get("port")! as string);
     if (!data.has("netmask")) throw new HTTPException(401, { message: "missing netmask" })
     const netmask = parseInt(data.get("netmask")! as string);
+
+    if (!data.has("dnsdomain")) throw new HTTPException(401, { message: "missing dnsdomain" })
+    const dnsdomain = data.get("dnsdomain")! as string;
     const addressIp = new IPv4(address);
     const mtu = 1420;
 
@@ -125,7 +128,8 @@ const createInterfaceCreationRequest = (data: FormData): AddInterfaceRequest => 
         endpoint,
         mtu,
         port,
-        subnet: netmask
+        subnet: netmask,
+        dnsdomain
     }
 }
 

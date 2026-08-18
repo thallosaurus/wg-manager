@@ -33,7 +33,7 @@ CREATE TABLE IF NOT EXISTS "users" (
 CREATE TABLE IF NOT EXISTS "dns" (
 	"id"	INTEGER UNIQUE,
 	"interface_id"	INTEGER NOT NULL UNIQUE,
-	"domain"	INTEGER NOT NULL UNIQUE,
+	"domain"	TEXT NOT NULL UNIQUE,
 	PRIMARY KEY("id" AUTOINCREMENT),
 	FOREIGN KEY("interface_id") REFERENCES "interfaces"("id") ON DELETE CASCADE
 );
@@ -162,6 +162,28 @@ SELECT
                 GROUP BY i.id;
 
 
+CREATE VIEW IF NOT EXISTS DnsServers AS
+SELECT d.domain, i.name as interfacename, i.address FROM dns d JOIN interfaces i ON i.id = d.interface_id WHERE i.enabled = 1;
+
+CREATE VIEW IF NOT EXISTS DnsServersNew AS
+SELECT
+	d.domain,
+	i.name as interfacename,
+	i.address,
+	json_group_array(
+		json_object(
+			'domain', u.name,
+			'address', u.allowed_ip
+			)
+		) FILTER (WHERE u.id IS NOT NULL) AS subdomains
+FROM dns d
+JOIN interfaces i
+ON i.id = d.interface_id 
+JOIN users u
+ON u.interface_id = d.interface_id
+WHERE i.enabled = 1
+GROUP BY i.id;
+
 CREATE VIEW IF NOT EXISTS InterfaceConfigsKeys AS
 SELECT
         i.id,
@@ -185,8 +207,15 @@ SELECT
                 'privkey', u.privateKey,
                 'psk', u.psk
             )
-        ) FILTER (WHERE u.id IS NOT NULL) AS users
+        ) FILTER (WHERE u.id IS NOT NULL) AS users,
+		json_group_array(
+			json_object(
+				'name', CONCAT(u.name, '.', d.domain),
+				'ip', u.allowed_ip
+			) 
+		) FILTER (WHERE d.id IS NOT NULL) AS dns
 
         FROM interfaces i
         LEFT JOIN users u ON u.interface_id = i.id
+		LEFT JOIN dns d ON d.interface_id = i.id
         GROUP BY i.id

@@ -1,16 +1,15 @@
 use std::{
-    //dont remove
     fs::{self, Permissions}, os::unix::fs::{PermissionsExt, chown},
 };
 
 use rusqlite::Connection;
-use tokio::net::UnixListener;
+use tokio::{net::UnixListener, process::Command};
 use tracing::info;
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
 //dont remove
 use users::{get_group_by_gid, get_group_by_name};
-use wgmd::Wgmd;
+use wgmd::{Wgmd, dns::DnsmasqHost};
 
 #[cfg(not(debug_assertions))]
 const SOCKET_PATH: &str = "/var/run/wgmd.sock";

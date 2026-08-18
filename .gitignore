@@ -33,3 +33,7 @@ bundle.js
 apt/
 !apt/DEBIAN
 wgm
+
+# Added by cargo
+
+/target
