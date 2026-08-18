@@ -43,6 +43,8 @@ export const MainView: FC<{ interfaces: PublicInterfaceConfig[] }> = ({ interfac
                 <NetmaskPicker />
                 <label for="endpoint" style={BlockElementsCSS}>Public Endpoint Address:</label>
                 <input type="text" name="endpoint" style={BlockElementsCSS}></input>
+                <label for="dnsdomain" style={BlockElementsCSS}>DNS Domain:</label>
+                <input type="text" name="dnsdomain" style={BlockElementsCSS}></input>
                 <label for="port" style={BlockElementsCSS}>Public Listen Port:</label>
                 <input type="number" name="port"></input>
                 <input type="hidden" name="redirect" value="/if/" />

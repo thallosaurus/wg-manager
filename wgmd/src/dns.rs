@@ -16,6 +16,13 @@ use tracing::debug;
 pub const CONFIG_HEADER: &str = "bind-interfaces
 no-hosts";
 
+pub fn insert_dns_root(db: &Connection, interface_id: i64, domain: String) -> Result<i64, rusqlite::Error> {
+    let mut stmt = db.prepare("INSERT INTO dns (interface_id, domain) VALUES(?, ?)")?;
+    stmt.execute((interface_id, domain))?;
+
+    Ok(db.last_insert_rowid())
+}
+
 fn get_active_dns_servers(db: &Connection) -> Result<Vec<DnsmasqRuntimeConfig>, rusqlite::Error> {
     let mut stmt = db.prepare("SELECT domain, interfacename, address, subdomains FROM DnsServersNew")?;
     let mut rows = stmt.query(())?;
@@ -23,18 +30,18 @@ fn get_active_dns_servers(db: &Connection) -> Result<Vec<DnsmasqRuntimeConfig>, 
     let mut result = Vec::new();
 
     while let Some(row) = rows.next()? {
-        let interface = row.get("if_name")?;
+        let interface = row.get("interfacename")?;
         let domain = row.get("domain")?;
 
         let a: u32 = row.get("address")?;
-        let address = Ipv4Addr::from(a);
+        //let address = Ipv4Addr::from(a);
         let sdomains: String = row.get("subdomains")?;
         let subdomains = serde_json::from_str(&sdomains).unwrap();
 
         result.push(DnsmasqRuntimeConfig {
             interface,
             domain,
-            address,
+            address: a,
             subdomains,
         });
     }
@@ -55,35 +62,34 @@ impl DnsmasqHost {
         }
     }
 
-    pub fn from_db(db: &Connection) -> io::Result<Self> {
+    pub fn from_db_into(db: &Connection, host: &mut Self) -> io::Result<()>{
         let active = get_active_dns_servers(db).unwrap();
-        let mut d = Self::new();
 
         for s in active {
-            d.add_config_instance(s)?;
+            host.add_config_instance(s)?;
         }
+        Ok(())
+    }
+
+    pub fn from_db(db: &Connection) -> io::Result<Self> {
+        let mut d = Self::new();
+
+        Self::from_db_into(db, &mut d)?;
 
         Ok(d)
     }
 
     pub fn add_config_instance(&mut self, conf: DnsmasqRuntimeConfig) -> io::Result<()> {
+
+        let octs = Ipv4Addr::from(conf.address).to_bits();
+
         self.instances
-            .insert(conf.address.to_bits(), run_dnsmasq_config(conf)?);
+            .insert(octs, run_dnsmasq_config(conf)?);
         Ok(())
     }
 
-    #[deprecated]
-    pub fn add_instance(&mut self) -> io::Result<u32> {
-        let id = self.next_id.load(Ordering::Relaxed);
-        self.instances.insert(id, run_dnsmasq(Some(id))?);
-
-        self.next_id.fetch_add(1, Ordering::Relaxed);
-
-        Ok(id)
-    }
-
     pub async fn stop_all_instances(&mut self) -> io::Result<()> {
-        for (id, dns) in self.instances.iter_mut() {
+        for (_, dns) in self.instances.iter_mut() {
             dns.stop().await;
         }
         self.instances.clear();
@@ -97,11 +103,12 @@ pub struct Dnsmasq {
     id: Option<u32>,
     pid: Option<u32>,
     handle: Child,
+    config: DnsmasqRuntimeConfig
 }
 
 //pub fn export_config()
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Debug)]
 pub struct DnsmasqRuntimeSubdomainConfig {
     domain: String,
     address: u32,
@@ -119,16 +126,18 @@ impl DnsmasqRuntimeSubdomainConfig {
     }
 }
 
+#[derive(Debug)]
 pub struct DnsmasqRuntimeConfig {
     //port: u16,
     domain: String,
     interface: String,
-    address: Ipv4Addr,
+    address: u32,
     subdomains: Vec<DnsmasqRuntimeSubdomainConfig>,
 }
 
 impl DnsmasqRuntimeConfig {
     fn to_command_args(&self) -> Vec<String> {
+        let ip = Ipv4Addr::from(self.address);
         let mut a = Vec::new();
         a.push("-k".into());
         //a.push("--port=6666".into());
@@ -137,7 +146,7 @@ impl DnsmasqRuntimeConfig {
         a.push("--no-resolv".into());
         a.push(format!("--no-dhcp-interface={}", self.interface).into());
         a.push(format!("--interface={}", self.interface).into());
-        a.push(format!("--listen-address={}", self.address.to_string()).into());
+        a.push(format!("--listen-address={}", ip.to_string()).into());
 
         for sub in self.subdomains.iter() {
             let mut s = sub.to_arg(&self.domain);
@@ -156,27 +165,12 @@ pub fn run_dnsmasq_config(config: DnsmasqRuntimeConfig) -> io::Result<Dnsmasq> {
     let handle = c.spawn()?;
     let pid = handle.id();
 
+    let octs = Ipv4Addr::from(config.address).to_bits();
     Ok(Dnsmasq {
-        id: Some(config.address.to_bits()),
+        id: Some(octs),
         pid,
         handle,
-    })
-}
-
-pub fn run_dnsmasq(id: Option<u32>) -> io::Result<Dnsmasq> {
-    let cmd = Command::new("dnsmasq")
-        .args([
-            "-k",
-            "--port=6666",
-            "--bind-interfaces", //format!("--conf-file=/var/lib/wgmd/dns/{}.conf", if_name).as_str(),
-        ])
-        .spawn()?;
-    let pid = cmd.id();
-
-    Ok(Dnsmasq {
-        id,
-        pid,
-        handle: cmd,
+        config
     })
 }
 

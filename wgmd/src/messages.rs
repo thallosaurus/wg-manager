@@ -14,7 +14,7 @@ use ts_rs::TS;
 use uuid::Uuid;
 
 use crate::{
-    dns::{CONFIG_HEADER, DnsmasqHost},
+    dns::{CONFIG_HEADER, DnsmasqHost, insert_dns_root},
     interfaces::{wg_make_privkey, wg_make_psk, wg_make_pubkey, wg_quick_down, wg_quick_up},
 };
 
@@ -27,10 +27,11 @@ pub struct PrivateUserConfig {
     privkey: String,
     psk: String,
     address: u32,
+    dnsaddress: u32,
     netaddress: u32,
     endpoint: String,
     listenport: u16,
-    network_mask: u8
+    network_mask: u8,
 }
 
 impl PrivateUserConfig {
@@ -38,12 +39,18 @@ impl PrivateUserConfig {
         let mut c = String::new();
         writeln!(c, "[Interface]")?;
         writeln!(c, "Address = {}", Ipv4Addr::from(self.address))?;
+        writeln!(c, "DNS = {}", Ipv4Addr::from(self.dnsaddress))?;
         //writeln!(c, "ListenPort = {}", 5);
         writeln!(c, "PrivateKey = {}", self.privkey.trim())?;
         writeln!(c, "[Peer]")?;
         writeln!(c, "PublicKey = {}", self.host_pubkey.trim())?;
         writeln!(c, "PresharedKey = {}", self.psk.trim())?;
-        writeln!(c, "AllowedIPs = {}/{}", Ipv4Addr::from(self.netaddress), self.network_mask)?;
+        writeln!(
+            c,
+            "AllowedIPs = {}/{}",
+            Ipv4Addr::from(self.netaddress),
+            self.network_mask
+        )?;
         writeln!(c, "PersistentKeepalive = {}", 30)?;
         writeln!(c, "Endpoint = {}:{}", self.endpoint, self.listenport)?;
         Ok(c)
@@ -342,6 +349,7 @@ pub struct AddInterfaceRequest {
     mtu: u16,
     subnet: u8,
     port: u16,
+    dnsdomain: String,
 }
 
 #[derive(Serialize, Deserialize, Debug, TS)]
@@ -354,7 +362,12 @@ pub struct RemoveInterfaceRequest {
 fn insert_interface(conf: AddInterfaceRequest, db: &Connection) -> Result<i64, WgmdError> {
     let privkey = wg_make_privkey()?;
     let pubkey = wg_make_pubkey(&privkey)?;
-    insert_interface_with_keys(conf, privkey, pubkey, db)
+    let dnsd = String::from(&conf.dnsdomain);
+    let id = insert_interface_with_keys(conf, privkey, pubkey, db)?;
+
+    insert_dns_root(db, id, dnsd)?;
+
+    Ok(id)
 }
 
 /// Inserts Interface with option to specify keys explicitly
@@ -553,7 +566,7 @@ fn query_user(q: QueryUser, db: &Connection) -> Result<PublicUserConfig, WgmdErr
 }
 
 fn query_user_private(q: QueryUser, db: &Connection) -> Result<PrivateUserConfig, WgmdError> {
-    Ok(db.query_one("SELECT u.allowed_ip as address, u.privateKey as userPrivatekey, i.pubkey as hostPubkey, u.publicKey as userPubkey, u.psk, i.endpoint, i.netmask, i.listenport, i.netaddress FROM users u LEFT JOIN interfaces i ON u.interface_id = i.id WHERE u.interface_id = ? AND u.id = ?",
+    Ok(db.query_one("SELECT u.allowed_ip as address, u.privateKey as userPrivatekey, i.pubkey as hostPubkey, u.publicKey as userPubkey, u.psk, i.endpoint, i.netmask, i.listenport, i.netaddress, i.address as dnsaddress FROM users u LEFT JOIN interfaces i ON u.interface_id = i.id WHERE u.interface_id = ? AND u.id = ?",
     (q.interface_id, q.user_id), |row| {
         let addr: u32 = row.get("address")?;
         let netaddr: u32 = row.get("netaddress")?;
@@ -570,6 +583,7 @@ fn query_user_private(q: QueryUser, db: &Connection) -> Result<PrivateUserConfig
             endpoint: row.get("endpoint")?,
             listenport: row.get("listenport")?,
             network_mask: row.get("netmask")?,
+            dnsaddress: row.get("dnsaddress")?,
         })
     })?)
 }
@@ -608,8 +622,9 @@ pub async fn process_message(
                 reapply_config(&c)?;
 
                 //dns.add_instance(&c.if_name)?;
-                dns.add_instance()?;
             }
+            debug!("restarting dns");
+            DnsmasqHost::from_db_into(&db, dns)?;
             Ok(WgmdAnswer::StatusOk)
         }
         WgmdMessages::ExportClient(export_client_request) => {
@@ -650,8 +665,12 @@ mod tests {
     use std::net::Ipv4Addr;
 
     use crate::{
-        interfaces::{wg_make_privkey, wg_make_psk, wg_make_pubkey}, messages::{
-            AddInterfaceRequest, AddUserRequest, QueryUser, RemoveInterfaceRequest, add_user_to_interface, add_user_to_interface_with_keys, delete_interface, get_single_interface_public, insert_interface, insert_interface_with_keys, query_user_private,
+        interfaces::{wg_make_privkey, wg_make_psk, wg_make_pubkey},
+        messages::{
+            AddInterfaceRequest, AddUserRequest, QueryUser, RemoveInterfaceRequest,
+            add_user_to_interface, add_user_to_interface_with_keys, delete_interface,
+            get_single_interface_public, insert_interface, insert_interface_with_keys,
+            query_user_private,
         },
     };
     use rusqlite::Connection;
@@ -675,6 +694,7 @@ mod tests {
                 mtu: 1420,
                 subnet: 24,
                 port: 12346,
+                dnsdomain: "test.internal.tld".to_string(),
             },
             &db,
         );
@@ -695,6 +715,7 @@ mod tests {
                 mtu: 1420,
                 subnet: 24,
                 port: 12346,
+                dnsdomain: "test.internal.tld".to_string(),
             },
             &db,
         );
@@ -709,6 +730,7 @@ mod tests {
                 mtu: 1420,
                 subnet: 24,
                 port: 12347,
+                dnsdomain: "test.internal.tld".to_string()
             },
             &db,
         );
@@ -739,6 +761,7 @@ mod tests {
                 mtu: 1420,
                 subnet: 24,
                 port: 12346,
+                dnsdomain: "test.internal.tld".to_string()
             },
             &db,
         );
@@ -759,6 +782,7 @@ mod tests {
                 mtu: 1420,
                 subnet: 24,
                 port: 12346,
+                dnsdomain: "test.internal.tld".to_string()
             },
             &db,
         );
@@ -793,6 +817,7 @@ mod tests {
             mtu: 1420,
             subnet: 24,
             port: 12345,
+            dnsdomain: "test.internal.tld".to_string()
         };
 
         let conf2 = AddInterfaceRequest {
@@ -802,6 +827,7 @@ mod tests {
             mtu: 1420,
             subnet: 24,
             port: 12346,
+            dnsdomain: "test.internal.tld".to_string()
         };
 
         let _ = insert_interface(conf, &db);
@@ -822,6 +848,7 @@ mod tests {
             mtu: 1420,
             subnet: 24,
             port: 12345,
+            dnsdomain: "test.internal.tld".to_string()
         };
         // Endpoint Keys
         let s_privkey = wg_make_privkey().unwrap();
@@ -849,7 +876,8 @@ mod tests {
             pubkey,
             psk,
             &db,
-        ).unwrap();
+        )
+        .unwrap();
 
         let expected_user_config = format!(
             "[Interface]
@@ -862,7 +890,9 @@ AllowedIPs = 172.16.0.0/24
 PersistentKeepalive = 30
 Endpoint = vpn.example.net:12345
 ",
-            privkey_str.trim(), s_pubkey_str.trim(), psk_str.trim()
+            privkey_str.trim(),
+            s_pubkey_str.trim(),
+            psk_str.trim()
         );
 
         let user = query_user_private(
@@ -871,9 +901,11 @@ Endpoint = vpn.example.net:12345
                 interface_id: interface_id,
             },
             &db,
-        ).unwrap();
+        )
+        .unwrap();
 
-        println!("Results:
+        println!(
+            "Results:
         Server Keys:
         Public: {},
         Private: {},
@@ -884,7 +916,13 @@ Endpoint = vpn.example.net:12345
         PSK: {}
 
         left is generated, right is expected config
-        ", s_pubkey_str.trim(), s_privkey_str.trim(), pubkey_str.trim(), privkey_str.trim(), psk_str.trim());
+        ",
+            s_pubkey_str.trim(),
+            s_privkey_str.trim(),
+            pubkey_str.trim(),
+            privkey_str.trim(),
+            psk_str.trim()
+        );
 
         let conf_real = user.to_wireguard_config().unwrap();
 
