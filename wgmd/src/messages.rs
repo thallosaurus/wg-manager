@@ -574,38 +574,41 @@ fn query_user_private(q: QueryUser, db: &Connection) -> Result<PrivateUserConfig
     })?)
 }
 
-pub fn process_message(
+pub async fn process_message(
     m: WgmdMessages,
-    db: &Connection,
+    db: Arc<Mutex<Connection>>,
     dns: &mut DnsmasqHost,
 ) -> Result<WgmdAnswer, WgmdError> {
     debug!("> {:?}", m);
 
+    let db = db.lock().await;
+
     let result = match m {
         WgmdMessages::RemoveInterface(req) => {
-            delete_interface(req, db).map(|_| WgmdAnswer::StatusOk)
+            delete_interface(req, &db).map(|_| WgmdAnswer::StatusOk)
         }
-        WgmdMessages::AddInterface(req) => insert_interface(req, db)
+        WgmdMessages::AddInterface(req) => insert_interface(req, &db)
             .map(|id| WgmdAnswer::AddInterfaceId(CreateAnswer { data: id })),
-        WgmdMessages::QueryAllInterfaces => get_all_interfaces_public(db)
+        WgmdMessages::QueryAllInterfaces => get_all_interfaces_public(&db)
             .map(|rows| WgmdAnswer::QueryAllInterfaces(QueryAllInterfacesAnswer { data: rows })),
-        WgmdMessages::QueryInterface(id) => get_single_interface_public(id.id, db)
+        WgmdMessages::QueryInterface(id) => get_single_interface_public(id.id, &db)
             .map(|r| WgmdAnswer::QuerySingleInterface(QuerySingleInterfaceAnswer { data: r })),
-        WgmdMessages::AddUser(req) => add_user_to_interface(req, db)
+        WgmdMessages::AddUser(req) => add_user_to_interface(req, &db)
             .map(|id| WgmdAnswer::AddUserId(CreateAnswer { data: id })),
         WgmdMessages::RemoveUser(req) => {
-            remove_user_from_interface(req, db).map(|_| WgmdAnswer::StatusOk)
+            remove_user_from_interface(req, &db).map(|_| WgmdAnswer::StatusOk)
         }
-        WgmdMessages::QueryUser(q) => query_user(q, db)
+        WgmdMessages::QueryUser(q) => query_user(q, &db)
             .map(|data| WgmdAnswer::QuerySingleUser(QuerySingleUserAnswer { data })),
         WgmdMessages::Export => {
-            let data = get_all_interfaces_private(db)?;
+            let data = get_all_interfaces_private(&db)?;
             //let run_id = Uuid::new_v4();
-            dns.stop_all_instances()?;
+            dns.stop_all_instances().await?;
             for c in data {
                 reapply_config(&c)?;
 
-                dns.add_instance(&c.if_name)?;
+                //dns.add_instance(&c.if_name)?;
+                dns.add_instance()?;
             }
             Ok(WgmdAnswer::StatusOk)
         }
@@ -615,7 +618,7 @@ pub fn process_message(
                     user_id: export_client_request.user_id,
                     interface_id: export_client_request.interface_id,
                 },
-                db,
+                &db,
             )?;
             Ok(WgmdAnswer::ClientExport {
                 data: q.to_wireguard_config()?,

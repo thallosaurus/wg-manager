@@ -165,6 +165,24 @@ SELECT
 CREATE VIEW IF NOT EXISTS DnsServers AS
 SELECT d.domain, i.name as if_name, i.address FROM dns d JOIN interfaces i ON i.id = d.interface_id WHERE i.enabled = 1;
 
+CREATE VIEW IF NOT EXISTS DnsServersNew AS
+SELECT
+	d.domain,
+	i.name as if_name,
+	i.address,
+	json_group_array(
+		json_object(
+			'domain', u.name,
+			'address', u.allowed_ip
+			)
+		) FILTER (WHERE u.id IS NOT NULL) AS subdomains
+FROM dns d
+JOIN interfaces i
+ON i.id = d.interface_id 
+JOIN users u
+ON u.interface_id = d.interface_id
+WHERE i.enabled = 1;
+
 CREATE VIEW IF NOT EXISTS InterfaceConfigsKeys AS
 SELECT
         i.id,

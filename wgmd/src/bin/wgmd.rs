@@ -9,7 +9,7 @@ use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
 //dont remove
 use users::{get_group_by_gid, get_group_by_name};
-use wgmd::Wgmd;
+use wgmd::{Wgmd, dns::DnsmasqHost};
 
 #[cfg(not(debug_assertions))]
 const SOCKET_PATH: &str = "/var/run/wgmd.sock";
@@ -30,10 +30,15 @@ async fn main() -> std::io::Result<()> {
     info!("Listening to {}", SOCKET_PATH);
     let db = Connection::open(DB_PATH).unwrap();
     info!("Open Database at path {}", DB_PATH);
+    
+    
+    let mut host = DnsmasqHost::from_db(&db)?;
+    info!("DNS Running");
 
     Wgmd::listen(&listener, db).await?;
 
     fs::remove_file(SOCKET_PATH)?;
+    host.stop_all_instances().await?;
 
     Ok(())
 }

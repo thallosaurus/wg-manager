@@ -100,11 +100,11 @@ async fn handle_client(
         let json: Result<WgmdMessages, serde_json::Error> = serde_json::from_str(&l);
         line.clear();
 
-        let db = db.lock().await;
+        //let db = db.lock().await;
         let mut dns = dns.lock().await;
 
         if let Ok(data) = json {
-            let answer = match process_message(data, &db, &mut dns) {
+            let answer = match process_message(data, db.clone(), &mut dns).await {
                 Ok(answer) => serde_json::to_string(&answer),
                 Err(e) => serde_json::to_string(&e),
             }?;
