@@ -14,7 +14,7 @@ use ts_rs::TS;
 use uuid::Uuid;
 
 use crate::{
-    dns::{CONFIG_HEADER, DnsmasqHost, insert_dns_root},
+    dns::{DnsmasqHost, insert_dns_root},
     interfaces::{wg_make_privkey, wg_make_psk, wg_make_pubkey, wg_quick_down, wg_quick_up},
 };
 
@@ -72,6 +72,10 @@ pub struct DnsConfig {
     ip: Ipv4Addr,
 }
 
+fn chain_name(if_name: &String) -> String {
+    format!("WG_{}", if_name.to_uppercase())
+}
+
 #[derive(Serialize, Deserialize, Debug)]
 //#[ts(export, export_to = "messages.ts")]
 pub struct InterfaceConfig {
@@ -100,28 +104,36 @@ impl InterfaceConfig {
         writeln!(c, "MTU = {}", self.mtu)?;
         writeln!(c, "Table = off")?;
         //writeln!(c, "PostUp = iptables -A FORWARD -i %i -j ACCEPT")?;
+        writeln!(c, "PostUp = iptables -N {}", chain_name(&self.if_name))?;
+        writeln!(c, "PostUp = iptables -A FORWARD -i {} -s {}/{} -j {}", self.if_name, self.address, self.subnet, chain_name(&self.if_name))?;
+
         writeln!(
             c,
-            "PostUp = iptables -A FORWARD -s {}/{} -o eth0 -j ACCEPT",
-            self.address, self.subnet
+            "PostUp = iptables -A {} -o eth0 -j ACCEPT",
+            chain_name(&self.if_name)
         )?;
-        //writeln!(c, "PostUp = iptables -t nat -A POSTROUTING -o eth0 -j MASQUERADE")?;
+
         writeln!(
             c,
             "PostUp = iptables -t nat -A POSTROUTING -s {}/{} -o eth0 -j MASQUERADE",
             self.address, self.subnet
         )?;
-        //writeln!(c, "PostDown = iptables -D FORWARD -i %i -j ACCEPT")?;
+
         writeln!(
             c,
-            "PostDown = iptables -D FORWARD -s {}/{} -o eth0 -j ACCEPT",
-            self.address, self.subnet
+            "PostDown = iptables -D {} -o eth0 -j ACCEPT",
+            chain_name(&self.if_name)
         )?;
+
         writeln!(
             c,
             "PostDown = iptables -t nat -D POSTROUTING -s {}/{} -o eth0 -j MASQUERADE",
             self.address, self.subnet
         )?;
+
+        writeln!(c, "PostDown = iptables -F {}", chain_name(&self.if_name))?;
+        writeln!(c, "PostDown = iptables -D FORWARD -i {} -s {}/{} -j {}", self.if_name, self.address, self.subnet, chain_name(&self.if_name))?;
+        writeln!(c, "PostDown = iptables -X {}", chain_name(&self.if_name))?;
 
         for u in self.users.clone() {
             let ip = Ipv4Addr::from(u.address);
@@ -135,12 +147,13 @@ impl InterfaceConfig {
         Ok(c)
     }
 
+    #[deprecated]
     pub fn to_dnsmasq_config(&self) -> Result<String, fmt::Error> {
         let mut c = String::new();
 
         writeln!(c, "listen-address={}", self.address.to_string())?;
         writeln!(c, "no-dhcp-interface={}", self.if_name)?;
-        writeln!(c, "{}", CONFIG_HEADER)?;
+        //writeln!(c, "{}", CONFIG_HEADER)?;
 
         for d in self.dns.iter() {
             writeln!(c, "server=/{}/{}", d.name, d.ip.to_string())?;
@@ -655,7 +668,7 @@ fn reapply_config(c: &InterfaceConfig) -> io::Result<()> {
     let dns_path = format!("/var/lib/wgmd/dns/{}.conf", c.if_name);
     wg_quick_down(&wg_path)?;
     fs::write(&wg_path, c.to_wireguard_config().unwrap())?;
-    fs::write(&dns_path, c.to_dnsmasq_config().unwrap())?;
+    //fs::write(&dns_path, c.to_dnsmasq_config().unwrap())?;
     wg_quick_up(&wg_path)?;
     Ok(())
 }

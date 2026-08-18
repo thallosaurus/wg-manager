@@ -13,9 +13,6 @@ use serde::{Deserialize, Serialize};
 use tokio::process::{Child, Command};
 use tracing::debug;
 
-pub const CONFIG_HEADER: &str = "bind-interfaces
-no-hosts";
-
 pub fn insert_dns_root(db: &Connection, interface_id: i64, domain: String) -> Result<i64, rusqlite::Error> {
     let mut stmt = db.prepare("INSERT INTO dns (interface_id, domain) VALUES(?, ?)")?;
     stmt.execute((interface_id, domain))?;
