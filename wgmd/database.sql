@@ -163,12 +163,12 @@ SELECT
 
 
 CREATE VIEW IF NOT EXISTS DnsServers AS
-SELECT d.domain, i.name as if_name, i.address FROM dns d JOIN interfaces i ON i.id = d.interface_id WHERE i.enabled = 1;
+SELECT d.domain, i.name as interfacename, i.address FROM dns d JOIN interfaces i ON i.id = d.interface_id WHERE i.enabled = 1;
 
 CREATE VIEW IF NOT EXISTS DnsServersNew AS
 SELECT
 	d.domain,
-	i.name as if_name,
+	i.name as interfacename,
 	i.address,
 	json_group_array(
 		json_object(
@@ -181,7 +181,8 @@ JOIN interfaces i
 ON i.id = d.interface_id 
 JOIN users u
 ON u.interface_id = d.interface_id
-WHERE i.enabled = 1;
+WHERE i.enabled = 1
+GROUP BY i.id;
 
 CREATE VIEW IF NOT EXISTS InterfaceConfigsKeys AS
 SELECT

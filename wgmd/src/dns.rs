@@ -17,7 +17,7 @@ pub const CONFIG_HEADER: &str = "bind-interfaces
 no-hosts";
 
 fn get_active_dns_servers(db: &Connection) -> Result<Vec<DnsmasqRuntimeConfig>, rusqlite::Error> {
-    let mut stmt = db.prepare("SELECT domain, if_name, address, subdomains FROM DnsServersNew")?;
+    let mut stmt = db.prepare("SELECT domain, interfacename, address, subdomains FROM DnsServersNew")?;
     let mut rows = stmt.query(())?;
 
     let mut result = Vec::new();
