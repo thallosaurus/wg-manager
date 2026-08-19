@@ -7,7 +7,7 @@ use std::{
 
 use base64::{Engine as _, engine::general_purpose::STANDARD};
 use defguard_wireguard_rs::{
-    InterfaceConfiguration, Userspace, WGApi, WireguardInterfaceApi,
+    InterfaceConfiguration, Kernel, Userspace, WGApi, WireguardInterfaceApi,
     error::WireguardInterfaceError, key::Key, net::IpAddrMask, peer::Peer,
 };
 use rusqlite::Connection;
@@ -70,7 +70,12 @@ pub fn convert_key(bytes: [u8; 32]) -> String {
 
 pub struct WireguardManager {
     conf: Vec<InterfaceConfiguration>,
+
+    #[cfg(target_os = "macos")]
     apis: Vec<WGApi<Userspace>>,
+
+    #[cfg(not(target_os = "macos"))]
+    apis: Vec<WGApi<Kernel>>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -109,7 +114,11 @@ impl WireguardManager {
             let users: Vec<PeerDbConfig> = serde_json::from_str(&v)?;
             let mut peers = Vec::new();
 
+            #[cfg(target_os = "macos")]
             let wg = WGApi::<Userspace>::new(&name).unwrap();
+
+            #[cfg(not(target_os = "macos"))]
+            let wg = WGApi::<Kernel>::new(&name).unwrap();
 
             for user in users.iter() {
                 let secret = hex::decode(user.privkey.clone()).unwrap();
@@ -149,25 +158,24 @@ impl WireguardManager {
 
             let conf = self.conf.get(i).unwrap();
             wg.create_interface()?;
+            for peer in conf.peers.iter() {
+                wg.configure_peer(&peer)?;
+            }
 
-            println!("AFTER CREATE:");
+            /*println!("AFTER CREATE:");
 
             Command::new("ip")
                 .args(["link", "show", &conf.name])
-                .status()?;
+                .status()?;*/
 
             wg.configure_interface(conf)?;
 
-            println!("AFTER CONFIG:");
+            //println!("AFTER CONFIG:");
 
-            Command::new("ip").args(["link", "show", &conf.name]).status()?;
+            //Command::new("ip").args(["link", "show", &conf.name]).status()?;
 
             let host = wg.read_interface_data().unwrap();
             println!("WireGuard configuration: {host:#?}");
-
-            //for peer in conf.peers.iter() {
-            //wg.configure_peer(&peer)?;
-            //}
 
             wg.configure_peer_routing(&conf.peers)?;
         }
