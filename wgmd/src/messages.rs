@@ -510,18 +510,23 @@ fn delete_interface(conf: RemoveInterfaceRequest, db: &Connection) -> Result<(),
 }
 
 fn add_user_to_interface(conf: AddUserRequest, db: &Connection) -> Result<i64, WgmdError> {
-    let privkey = wg_make_privkey()?;
-    let pubkey = wg_make_pubkey(&privkey)?;
-    let psk = wg_make_psk()?;
+    //let privkey = wg_make_privkey()?;
+    //let pubkey = wg_make_pubkey(&privkey)?;
+    //let psk = wg_make_psk()?;
 
-    add_user_to_interface_with_keys(conf, privkey, pubkey, psk, db)
+    let privkey = StaticSecret::random();
+    //let pubkey = wg_make_pubkey(&privkey)?;
+    let pubkey = PublicKey::from(&privkey);
+    let psk = StaticSecret::random();
+
+    add_user_to_interface_with_keys(conf, &privkey.to_bytes(), &pubkey.to_bytes(), &psk.to_bytes(), db)
 }
 
 fn add_user_to_interface_with_keys(
     conf: AddUserRequest,
-    privkey: Vec<u8>,
-    pubkey: Vec<u8>,
-    psk: Vec<u8>,
+    privkey: &[u8; 32],
+    pubkey: &[u8; 32],
+    psk: &[u8; 32],
     db: &Connection,
 ) -> Result<i64, WgmdError> {
     //let if_priv = get_interface_private_key(conf.interface_id, db)?;
@@ -531,9 +536,9 @@ fn add_user_to_interface_with_keys(
         conf.interface_id,
         conf.username,
         u32::from(conf.address),
-        String::from_utf8(pubkey)?,
-        String::from_utf8(psk)?,
-        String::from_utf8(privkey)?,
+        pubkey.as_slice(),
+        psk.as_slice(),
+        privkey.as_slice(),
     ))?;
     Ok(db.last_insert_rowid())
 }
