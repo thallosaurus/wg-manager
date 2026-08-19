@@ -1,12 +1,10 @@
 use std::{
-    collections::HashMap,
-    io,
-    net::Ipv4Addr,
+    collections::HashMap, io, net::Ipv4Addr, sync::{Arc, Mutex},
 };
 
 use rusqlite::Connection;
 use serde::{Deserialize, Serialize};
-use tokio::process::{Child, Command};
+use tokio::{process::{Child, Command}};
 use tracing::debug;
 
 pub fn insert_dns_root(db: &Connection, interface_id: i64, domain: String) -> Result<i64, rusqlite::Error> {
@@ -16,7 +14,9 @@ pub fn insert_dns_root(db: &Connection, interface_id: i64, domain: String) -> Re
     Ok(db.last_insert_rowid())
 }
 
-fn get_active_dns_servers(db: &Connection) -> Result<Vec<DnsmasqRuntimeConfig>, rusqlite::Error> {
+fn get_active_dns_servers(db: &Arc<Mutex<Connection>>) -> Result<Vec<DnsmasqRuntimeConfig>, rusqlite::Error> {
+    let db = db.lock().unwrap();
+
     let mut stmt = db.prepare("SELECT domain, interfacename, address, subdomains FROM DnsServersNew")?;
     let mut rows = stmt.query(())?;
 
@@ -54,7 +54,7 @@ impl DnsmasqHost {
         }
     }
 
-    pub fn from_db_into(db: &Connection, host: &mut Self) -> io::Result<()>{
+    pub fn from_db_into(db: &Arc<Mutex<Connection>>, host: &mut Self) -> io::Result<()>{
         let active = get_active_dns_servers(db).unwrap();
 
         for s in active {
@@ -63,7 +63,7 @@ impl DnsmasqHost {
         Ok(())
     }
 
-    pub fn from_db(db: &Connection) -> io::Result<Self> {
+    pub fn from_db(db: &Arc<Mutex<Connection>>) -> io::Result<Self> {
         let mut d = Self::new();
 
         Self::from_db_into(db, &mut d)?;

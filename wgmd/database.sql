@@ -9,7 +9,7 @@ CREATE TABLE IF NOT EXISTS "interfaces" (
 	"endpoint" TEXT UNIQUE NOT NULL,
 	"listenport" INTEGER CHECK(listenport BETWEEN 1 AND 65535) NOT NULL UNIQUE,
 	"privatekey" BLOB UNIQUE NOT NULL,
-	"pubkey" BLOB UNIQUE NOT NULL,
+	-- "pubkey" BLOB UNIQUE NOT NULL,
 	"mtu" INTEGER NOT NULL,
 	"created_at" TEXT NOT NULL DEFAULT current_timestamp,
     "updated_at" TEXT NOT NULL DEFAULT current_timestamp,
@@ -20,7 +20,7 @@ CREATE TABLE IF NOT EXISTS "users" (
 	"id"	INTEGER,
 	"interface_id" INTEGER NOT NULL,
 	"name"	TEXT NOT NULL,
-	"publicKey"	BLOB NOT NULL UNIQUE,
+	-- "publicKey"	BLOB NOT NULL UNIQUE,
 	"allowed_ip" UNSIGNED INTEGER NOT NULL,
 	"psk"	BLOB NOT NULL,
 	"privateKey" BLOB NOT NULL UNIQUE,
@@ -194,7 +194,6 @@ SELECT
 		i.endpoint,
         i.listenport,
         hex(i.privatekey) as privatekey,
-        hex(i.pubkey) as pubkey,
         i.netmask,
         i.broadcast,
         i.mtu,
@@ -203,7 +202,6 @@ SELECT
                 'id', u.id,
                 'name', u.name,
                 'address', u.allowed_ip,
-                'pubkey', hex(u.publicKey),
                 'privkey', hex(u.privateKey),
                 'psk', hex(u.psk)
             )

@@ -1,15 +1,16 @@
 use std::{
-    fs::{self, Permissions}, os::unix::fs::{PermissionsExt, chown},
+    fs::{self, Permissions}, os::unix::fs::{PermissionsExt, chown}, sync::Arc,
 };
 
 use rusqlite::Connection;
 use tokio::{net::UnixListener, process::Command};
 use tracing::info;
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
+use std::sync::Mutex;
 
 //dont remove
 use users::{get_group_by_gid, get_group_by_name};
-use wgmd::{Wgmd, dns::DnsmasqHost};
+use wgmd::{Wgmd, dns::DnsmasqHost, interfaces::WireguardManager, listen, open_database};
 
 #[cfg(not(debug_assertions))]
 const SOCKET_PATH: &str = "/var/run/wgmd.sock";
@@ -26,14 +27,23 @@ const DB_PATH: &str = "./manager.db";
 #[tokio::main]
 async fn main() -> std::io::Result<()> {
     init_tracing();
-    let listener = setup_socket(SOCKET_PATH)?;
+
+    // open database
+    let db = Arc::new(Mutex::new(open_database(DB_PATH).unwrap()));
+
+    //open wireguard interfaces
+    let mut wg_manager = WireguardManager::create_from_database(&db).await.unwrap();
+    wg_manager.start().unwrap();
+
+    //open dns
+    let mut dns = DnsmasqHost::from_db(&db).unwrap();
+
+    //open comm listener
     info!("Listening to {}", SOCKET_PATH);
-    let db = Connection::open(DB_PATH).unwrap();
-    info!("Open Database at path {}", DB_PATH);
+    listen(SOCKET_PATH, &db).await?;
 
-    Wgmd::listen(&listener, db).await?;
-
-    fs::remove_file(SOCKET_PATH)?;
+    wg_manager.stop();;
+    dns.stop_all_instances().await.unwrap();
 
     Ok(())
 }
@@ -53,16 +63,4 @@ fn init_tracing() {
         .init();
 }
 
-pub fn setup_socket(p: &str) -> std::io::Result<UnixListener> {
-    let _ = std::fs::remove_file(&p);
-    let listener = UnixListener::bind(&p)?;
-    let _ = std::fs::set_permissions(&p, Permissions::from_mode(0o660)).unwrap();
 
-    // if we are running in release mode, apply root/wgmd uid/gid
-    #[cfg(not(debug_assertions))]
-    let g = get_group_by_name("wgmd").unwrap_or(get_group_by_gid(0).unwrap());
-    #[cfg(not(debug_assertions))]
-    chown(p, Some(0), Some(g.gid())).unwrap();
-
-    Ok(listener)
-}

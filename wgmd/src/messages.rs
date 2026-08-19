@@ -1,14 +1,12 @@
 use core::fmt;
 use std::{
-    fmt::Write, format, fs, io, net::Ipv4Addr, string::FromUtf8Error, sync::Arc,
-    writeln,
+    fmt::Write, format, fs, io, net::Ipv4Addr, string::FromUtf8Error, sync::{Arc, Mutex}, writeln,
 };
 
 use ipnet::Ipv4Net;
 use rusqlite::Connection;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
-use tokio::sync::Mutex;
 use tracing::debug;
 use ts_rs::TS;
 use x25519_dalek::{PublicKey, StaticSecret};
@@ -82,7 +80,7 @@ pub struct InterfaceConfig {
     subnet: u8,
     mtu: u16,
     private_key: String,
-    public_key: String,
+    //public_key: String,
     endpoint: String,
     users: Vec<UserConfig>,
     dns: Vec<DnsConfig>,
@@ -371,7 +369,7 @@ fn insert_interface_with_keys(
     let netaddress = Ipv4Net::new(conf.address, conf.subnet).unwrap();
 
     db.execute(
-        "INSERT INTO interfaces (name, address, endpoint, privatekey, pubkey, mtu, netmask, netaddress, broadcast, listenport) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?);",
+        "INSERT INTO interfaces (name, address, endpoint, privatekey, mtu, netmask, netaddress, broadcast, listenport) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?);",
         (
             conf.if_name,
             u32::from(conf.address),
@@ -379,7 +377,7 @@ fn insert_interface_with_keys(
             //String::from_utf8(privkey).unwrap().trim(),
             privkey.as_slice(),
             //String::from_utf8(pubkey).unwrap().trim(),
-            pubkey.as_slice(),
+            //pubkey.as_slice(),
             conf.mtu,
             conf.subnet,
             u32::from(netaddress.network()),
@@ -393,7 +391,7 @@ fn insert_interface_with_keys(
 
 fn get_all_interfaces_private(db: &Connection) -> Result<Vec<InterfaceConfig>, WgmdError> {
     let mut stmt =
-        db.prepare("SELECT id, name, address, listenport, netmask, privatekey, pubkey, mtu, endpoint, users, dns FROM InterfaceConfigsKeys WHERE enabled = 1")?;
+        db.prepare("SELECT id, name, address, listenport, netmask, privatekey, mtu, endpoint, users, dns FROM InterfaceConfigsKeys WHERE enabled = 1")?;
     let mut rows = stmt.query(())?;
 
     let mut result: Vec<InterfaceConfig> = Vec::new();
@@ -403,7 +401,7 @@ fn get_all_interfaces_private(db: &Connection) -> Result<Vec<InterfaceConfig>, W
         let v: String = row.get("users")?;
         let dns: String = row.get("dns")?;
         let privkey: String = row.get("privatekey")?;
-        let pubkey: String = row.get("pubkey")?;
+        //let pubkey: String = row.get("pubkey")?;
         result.push(InterfaceConfig {
             id: row.get("id")?,
             if_name: row.get("name")?,
@@ -412,7 +410,7 @@ fn get_all_interfaces_private(db: &Connection) -> Result<Vec<InterfaceConfig>, W
             subnet: row.get("netmask")?,
             mtu: row.get("mtu")?,
             private_key: privkey.trim().to_string(),
-            public_key: pubkey.trim().to_string(),
+            //public_key: pubkey.trim().to_string(),
             endpoint: row.get("endpoint")?,
             users: serde_json::from_str(&v)?,
             dns: serde_json::from_str(&dns)?,
@@ -532,11 +530,11 @@ fn add_user_to_interface_with_keys(
     //let if_priv = get_interface_private_key(conf.interface_id, db)?;
     //let client_psk = wg_make_psk()?;
 
-    db.execute("INSERT INTO users (interface_id, name, allowed_ip, publicKey, psk, privateKey) VALUES (?, ?, ?, ?, ?, ?)", (
+    db.execute("INSERT INTO users (interface_id, name, allowed_ip, psk, privateKey) VALUES (?, ?, ?, ?, ?)", (
         conf.interface_id,
         conf.username,
         u32::from(conf.address),
-        pubkey.as_slice(),
+        //pubkey.as_slice(),
         psk.as_slice(),
         privkey.as_slice(),
     ))?;
@@ -589,11 +587,11 @@ fn query_user_private(q: QueryUser, db: &Connection) -> Result<PrivateUserConfig
 pub async fn process_message(
     m: WgmdMessages,
     db: Arc<Mutex<Connection>>,
-    dns: &mut DnsmasqHost,
+    //dns: &mut DnsmasqHost,
 ) -> Result<WgmdAnswer, WgmdError> {
     debug!("> {:?}", m);
 
-    let db = db.lock().await;
+    let db = db.lock().unwrap();
 
     let result = match m {
         WgmdMessages::RemoveInterface(req) => {
@@ -615,14 +613,14 @@ pub async fn process_message(
         WgmdMessages::Export => {
             let data = get_all_interfaces_private(&db)?;
             //let run_id = Uuid::new_v4();
-            dns.stop_all_instances().await?;
+            //dns.stop_all_instances().await?;
             for c in data {
                 reapply_config(&c)?;
 
                 //dns.add_instance(&c.if_name)?;
             }
-            debug!("restarting dns");
-            DnsmasqHost::from_db_into(&db, dns)?;
+            //debug!("restarting dns");
+            //DnsmasqHost::from_db_into(&db, dns)?;
             Ok(WgmdAnswer::StatusOk)
         }
         WgmdMessages::ExportClient(export_client_request) => {

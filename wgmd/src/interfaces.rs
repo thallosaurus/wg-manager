@@ -2,12 +2,13 @@ use std::{
     io::{self, Write},
     net::{IpAddr, Ipv4Addr},
     process::{Command, Stdio},
+    sync::{Arc, Mutex},
 };
 
 use base64::{Engine as _, engine::general_purpose::STANDARD};
 use defguard_wireguard_rs::{
-    InterfaceConfiguration, Userspace, WGApi, WireguardInterfaceApi, key::Key, net::IpAddrMask,
-    peer::Peer,
+    InterfaceConfiguration, Userspace, WGApi, WireguardInterfaceApi,
+    error::WireguardInterfaceError, key::Key, net::IpAddrMask, peer::Peer,
 };
 use rusqlite::Connection;
 use serde::{Deserialize, Serialize};
@@ -68,24 +69,28 @@ pub fn convert_key(bytes: [u8; 32]) -> String {
 }
 
 pub struct WireguardManager {
+    conf: Vec<InterfaceConfiguration>,
     apis: Vec<WGApi<Userspace>>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct PeerDbConfig {
     privkey: String,
-    pubkey: String,
+    //pubkey: String,
     address: u32,
     psk: String,
 }
 
 impl WireguardManager {
-    pub fn create_from_database(db: &Connection) -> Result<Self, WgmdError> {
+    pub async fn create_from_database(db: &Arc<Mutex<Connection>>) -> Result<Self, WgmdError> {
+        let db = db.lock().unwrap();
+
         let mut stmt =
-        db.prepare("SELECT id, name, address, listenport, netmask, privatekey, pubkey, mtu, endpoint, users, dns FROM InterfaceConfigsKeys WHERE enabled = 1")?;
+        db.prepare("SELECT id, name, address, listenport, netmask, privatekey, mtu, endpoint, users, dns FROM InterfaceConfigsKeys WHERE enabled = 1")?;
         let mut rows = stmt.query(()).unwrap();
 
         let mut apis = Vec::new();
+        let mut conf = Vec::new();
 
         while let Some(row) = rows.next()? {
             println!("{:#?}", row);
@@ -104,9 +109,7 @@ impl WireguardManager {
             let users: Vec<PeerDbConfig> = serde_json::from_str(&v)?;
             let mut peers = Vec::new();
 
-            let mut wg = WGApi::<Userspace>::new(&name).unwrap();
-
-            wg.create_interface().unwrap();
+            let wg = WGApi::<Userspace>::new(&name).unwrap();
 
             for user in users.iter() {
                 let secret = hex::decode(user.privkey.clone()).unwrap();
@@ -118,13 +121,15 @@ impl WireguardManager {
                 let mut peer = Peer::new(peer_key);
                 let addr = IpAddrMask::new(IpAddr::V4(Ipv4Addr::from(na)), mask);
                 peer.allowed_ips.push(addr);
-                peers.push(peer);
                 //wg.configure_peer(&peer);
+                peers.push(peer);
             }
 
             let ip = Ipv4Addr::from(na).to_string();
 
-            wg.configure_interface(&InterfaceConfiguration {
+            apis.push(wg);
+
+            conf.push(InterfaceConfiguration {
                 name: name,
                 prvkey: convert_key(privkey),
                 addresses: vec![ip.parse().unwrap()],
@@ -132,29 +137,31 @@ impl WireguardManager {
                 peers,
                 mtu: Some(mtu),
                 fwmark: None,
-            })
-            .unwrap();
+            });
+        }
+
+        Ok(Self { conf, apis })
+    }
+
+    pub fn start(&mut self) -> Result<(), WireguardInterfaceError> {
+        for (i, wg) in self.apis.iter_mut().enumerate() {
+            //a.1.create_interface().unwrap();
+
+            let conf = self.conf.get(i).unwrap();
+            wg.create_interface()?;
+            wg.configure_interface(conf)?;
 
             let host = wg.read_interface_data().unwrap();
             println!("WireGuard configuration: {host:#?}");
 
-            apis.push(wg);
+            //for users in conf.
         }
-
-        //debug!("{}", apis);
-
-        Ok(Self { apis })
-    }
-
-    pub fn start(&mut self) {
-        for a in self.apis.iter_mut() {
-            a.create_interface().unwrap();
-        }
+        Ok(())
     }
 
     pub fn stop(&mut self) {
-        for a in self.apis.iter_mut() {
-            a.remove_interface().unwrap();
+        for interface in self.apis.iter_mut() {
+            interface.remove_interface().unwrap();
         }
     }
 }
@@ -162,10 +169,9 @@ impl WireguardManager {
 #[cfg(test)]
 mod tests {
     use rusqlite::Connection;
-use x25519_dalek::StaticSecret;
+    use x25519_dalek::StaticSecret;
 
-use crate::DB_QUERY;
-
+    use crate::DB_QUERY;
 
     fn debug_database() -> Connection {
         let db = Connection::open(":memory:").unwrap();
@@ -176,15 +182,17 @@ use crate::DB_QUERY;
     #[test]
     fn test_database_loading() {
         let db = debug_database();
-        
+
         let key = StaticSecret::random();
         let as_bytes = key.as_bytes();
 
         let mut p = db.prepare("SELECT hex(?) as key").unwrap();
-        let r = p.query_one((as_bytes,), |row| {
-            let c: String = row.get("key").unwrap();
-            Ok(hex::decode(c).unwrap())
-        }).unwrap();
+        let r = p
+            .query_one((as_bytes,), |row| {
+                let c: String = row.get("key").unwrap();
+                Ok(hex::decode(c).unwrap())
+            })
+            .unwrap();
 
         println!("{:?}", r);
         println!("{:?}", as_bytes);
