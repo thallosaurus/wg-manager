@@ -122,10 +122,12 @@ impl WireguardManager {
                 //wg.configure_peer(&peer);
             }
 
+            let ip = Ipv4Addr::from(na).to_string();
+
             wg.configure_interface(&InterfaceConfiguration {
                 name: name,
                 prvkey: convert_key(privkey),
-                addresses: vec![],
+                addresses: vec![ip.parse().unwrap()],
                 port: port,
                 peers,
                 mtu: Some(mtu),
