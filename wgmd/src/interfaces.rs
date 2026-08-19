@@ -84,6 +84,7 @@ impl WireguardManager {
         let mut stmt =
         db.prepare("SELECT id, name, address, listenport, netmask, privatekey, pubkey, mtu, endpoint, users, dns FROM InterfaceConfigsKeys WHERE enabled = 1").unwrap();
         let mut rows = stmt.query(()).unwrap();
+
         let mut apis = Vec::new();
 
         while let Some(row) = rows.next()? {
