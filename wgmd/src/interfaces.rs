@@ -149,14 +149,24 @@ impl WireguardManager {
 
             let conf = self.conf.get(i).unwrap();
             wg.create_interface()?;
+
+            println!("AFTER CREATE:");
+
+            Command::new("ip")
+                .args(["link", "show", &conf.name])
+                .status()?;
+
             wg.configure_interface(conf)?;
 
-            
+            println!("AFTER CONFIG:");
+
+            Command::new("ip").args(["link", "show", &conf.name]).status()?;
+
             let host = wg.read_interface_data().unwrap();
             println!("WireGuard configuration: {host:#?}");
-            
+
             //for peer in conf.peers.iter() {
-                //wg.configure_peer(&peer)?;
+            //wg.configure_peer(&peer)?;
             //}
 
             wg.configure_peer_routing(&conf.peers)?;
