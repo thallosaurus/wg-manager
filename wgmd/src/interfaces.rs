@@ -133,7 +133,7 @@ impl WireguardManager {
                 name: name,
                 prvkey: convert_key(privkey),
                 addresses: vec![ip],
-                port: port,
+                port,
                 peers,
                 mtu: Some(mtu),
                 fwmark: None,
@@ -151,12 +151,15 @@ impl WireguardManager {
             wg.create_interface()?;
             wg.configure_interface(conf)?;
 
-            wg.configure_peer_routing(&conf.peers)?;
-
+            
             let host = wg.read_interface_data().unwrap();
             println!("WireGuard configuration: {host:#?}");
-
-            //for users in conf.
+            
+            for peer in conf.peers.iter() {
+                wg.configure_peer(&peer)?;
+            }
+            
+            wg.configure_peer_routing(&conf.peers)?;
         }
         Ok(())
     }
