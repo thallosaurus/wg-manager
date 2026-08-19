@@ -155,10 +155,10 @@ impl WireguardManager {
             let host = wg.read_interface_data().unwrap();
             println!("WireGuard configuration: {host:#?}");
             
-            for peer in conf.peers.iter() {
-                wg.configure_peer(&peer)?;
-            }
-            
+            //for peer in conf.peers.iter() {
+                //wg.configure_peer(&peer)?;
+            //}
+
             wg.configure_peer_routing(&conf.peers)?;
         }
         Ok(())
