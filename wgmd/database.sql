@@ -193,8 +193,8 @@ SELECT
         i.netaddress,
 		i.endpoint,
         i.listenport,
-        i.privatekey,
-        i.pubkey,
+        hex(i.privatekey) as privatekey,
+        hex(i.pubkey) as pubkey,
         i.netmask,
         i.broadcast,
         i.mtu,
@@ -203,9 +203,9 @@ SELECT
                 'id', u.id,
                 'name', u.name,
                 'address', u.allowed_ip,
-                'pubkey', u.publicKey,
-                'privkey', u.privateKey,
-                'psk', u.psk
+                'pubkey', hex(u.publicKey),
+                'privkey', hex(u.privateKey),
+                'psk', hex(u.psk)
             )
         ) FILTER (WHERE u.id IS NOT NULL) AS users,
 		json_group_array(

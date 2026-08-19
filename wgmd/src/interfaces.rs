@@ -73,26 +73,28 @@ pub struct WireguardManager {
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct PeerDbConfig {
-    privatekey: Vec<u8>,
-    publickey: Vec<u8>,
+    privkey: String,
+    pubkey: String,
     address: u32,
-    psk: Vec<u8>,
+    psk: String,
 }
 
 impl WireguardManager {
     pub fn create_from_database(db: &Connection) -> Result<Self, WgmdError> {
         let mut stmt =
-        db.prepare("SELECT id, name, address, listenport, netmask, privatekey, pubkey, mtu, endpoint, users, dns FROM InterfaceConfigsKeys WHERE enabled = 1").unwrap();
+        db.prepare("SELECT id, name, address, listenport, netmask, privatekey, pubkey, mtu, endpoint, users, dns FROM InterfaceConfigsKeys WHERE enabled = 1")?;
         let mut rows = stmt.query(()).unwrap();
 
         let mut apis = Vec::new();
 
         while let Some(row) = rows.next()? {
+            println!("{:#?}", row);
             let na: u32 = row.get("address")?;
             let mask: u8 = row.get("netmask")?;
             let name: String = row.get("name")?;
             let mtu: u32 = row.get("mtu")?;
-            let privkey: Vec<u8> = row.get("privatekey")?;
+            let privkey: String = row.get("privatekey")?;
+            let privkey = hex::decode(privkey).unwrap();
             let privkey: [u8; 32] = privkey.try_into().unwrap();
             //let pubkey: Vec<u8> = row.get("pubkey")?;
             //let pubkey: [u8; 32] = pubkey.try_into().unwrap();
@@ -102,12 +104,13 @@ impl WireguardManager {
             let users: Vec<PeerDbConfig> = serde_json::from_str(&v)?;
             let mut peers = Vec::new();
 
-            let wg = WGApi::<Userspace>::new(&name).unwrap();
+            let mut wg = WGApi::<Userspace>::new(&name).unwrap();
 
-            //wg.create_interface().unwrap();
+            wg.create_interface().unwrap();
 
             for user in users.iter() {
-                let secret: [u8; 32] = user.privatekey.clone().try_into().unwrap();
+                let secret = hex::decode(user.privkey.clone()).unwrap();
+                let secret: [u8; 32] = secret.try_into().unwrap();
                 let secret = StaticSecret::from(secret);
 
                 let key = PublicKey::from(&secret);
@@ -151,5 +154,39 @@ impl WireguardManager {
         for a in self.apis.iter_mut() {
             a.remove_interface().unwrap();
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use rusqlite::Connection;
+use x25519_dalek::StaticSecret;
+
+use crate::DB_QUERY;
+
+
+    fn debug_database() -> Connection {
+        let db = Connection::open(":memory:").unwrap();
+        db.execute_batch(DB_QUERY).unwrap();
+        db
+    }
+
+    #[test]
+    fn test_database_loading() {
+        let db = debug_database();
+        
+        let key = StaticSecret::random();
+        let as_bytes = key.as_bytes();
+
+        let mut p = db.prepare("SELECT hex(?) as key").unwrap();
+        let r = p.query_one((as_bytes,), |row| {
+            let c: String = row.get("key").unwrap();
+            Ok(hex::decode(c).unwrap())
+        }).unwrap();
+
+        println!("{:?}", r);
+        println!("{:?}", as_bytes);
+        assert_eq!(r, as_bytes.to_vec());
+        //p.
     }
 }
