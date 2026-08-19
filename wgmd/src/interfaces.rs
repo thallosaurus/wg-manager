@@ -119,20 +119,20 @@ impl WireguardManager {
                 let key = PublicKey::from(&secret);
                 let peer_key: Key = key.as_ref().try_into().unwrap();
                 let mut peer = Peer::new(peer_key);
-                let addr = IpAddrMask::new(IpAddr::V4(Ipv4Addr::from(na)), mask);
+                let addr = IpAddrMask::new(IpAddr::V4(Ipv4Addr::from(user.address)), 32);
                 peer.allowed_ips.push(addr);
                 //wg.configure_peer(&peer);
                 peers.push(peer);
             }
 
-            let ip = Ipv4Addr::from(na).to_string();
+            let ip = IpAddrMask::new(IpAddr::V4(Ipv4Addr::from(na)), mask);
 
             apis.push(wg);
 
             conf.push(InterfaceConfiguration {
                 name: name,
                 prvkey: convert_key(privkey),
-                addresses: vec![ip.parse().unwrap()],
+                addresses: vec![ip],
                 port: port,
                 peers,
                 mtu: Some(mtu),
@@ -150,6 +150,8 @@ impl WireguardManager {
             let conf = self.conf.get(i).unwrap();
             wg.create_interface()?;
             wg.configure_interface(conf)?;
+
+            wg.configure_peer_routing(&conf.peers)?;
 
             let host = wg.read_interface_data().unwrap();
             println!("WireGuard configuration: {host:#?}");

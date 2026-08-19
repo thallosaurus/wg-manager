@@ -3,7 +3,7 @@ use std::{
 };
 
 use rusqlite::Connection;
-use tokio::{net::UnixListener, process::Command};
+use tokio::{net::UnixListener, process::Command, signal::unix::{SignalKind, signal}};
 use tracing::info;
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 use std::sync::Mutex;
@@ -40,10 +40,26 @@ async fn main() -> std::io::Result<()> {
 
     //open comm listener
     info!("Listening to {}", SOCKET_PATH);
-    listen(SOCKET_PATH, &db).await?;
+    let stop = listen(SOCKET_PATH, &db)?;
 
-    wg_manager.stop();;
+    let mut sigterm = signal(SignalKind::terminate())?;
+    let mut sigint = signal(SignalKind::interrupt())?;
+
+    loop {
+        tokio::select! {
+            _ = sigterm.recv() => {
+                break;
+            }
+            _ = sigint.recv() => {
+                break;
+            }
+        }
+    }
+
+    stop.send(()).unwrap();
     dns.stop_all_instances().await.unwrap();
+    wg_manager.stop();
+    fs::remove_file(SOCKET_PATH)?;
 
     Ok(())
 }

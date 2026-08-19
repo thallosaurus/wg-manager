@@ -2,8 +2,8 @@ import { AddInterfaceRequest, AddUserRequest, SocketConnection } from "./wgmd/ma
 
 let conn = await SocketConnection.connect("./wgmd/wgmd.sock")
 let r = await conn.addInterface({
-  if_name: "test0",
-  address: "10.0.128.1",
+  if_name: "utun10",
+  address: "172.16.128.1",
   endpoint: "vpn.example.net",
   mtu: 1420,
   subnet: 24,
@@ -16,6 +16,6 @@ if (r.type == "add_interface") {
     await conn.addUser({
       interface_id: id,
       username: "test",
-      address: "10.0.128.2"
+      address: "172.16.128.2"
     })
 }

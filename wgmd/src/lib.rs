@@ -1,13 +1,17 @@
-use std::{fs::{self, Permissions}, os::unix::fs::PermissionsExt, sync::{Arc, Mutex}};
+use std::{
+    fs::Permissions,
+    os::unix::fs::PermissionsExt,
+    sync::{Arc, Mutex},
+};
 
 use crate::{
-    dns::DnsmasqHost,
     messages::{WgmdError, WgmdMessages, process_message},
 };
 use rusqlite::Connection;
 use tokio::{
     io,
-    signal::unix::{Signal, SignalKind, signal},
+    signal::unix::Signal,
+    sync::oneshot,
 };
 use tokio::{
     io::{AsyncBufReadExt, AsyncWriteExt, BufReader},
@@ -23,23 +27,11 @@ pub mod messages;
 
 const DB_QUERY: &str = include_str!("../database.sql");
 
-pub(crate) type Signals = (Signal, Signal);
-
-#[cfg(not(debug_assertions))]
-const SOCKET_PATH: &str = "/var/run/wgmd.sock";
-
-#[cfg(not(debug_assertions))]
-const DB_PATH: &str = "/var/lib/wgmd/manager.db";
-
-#[cfg(debug_assertions)]
-const SOCKET_PATH: &str = "./wgmd.sock";
-
-#[cfg(debug_assertions)]
-const DB_PATH: &str = "./manager.db";
+//pub(crate) type Signals = (Signal, Signal);
 
 pub fn open_database(path: &str) -> rusqlite::Result<Connection> {
-    let db = Connection::open(DB_PATH).unwrap();
-    info!("Open Database at path {}", DB_PATH);
+    let db = Connection::open(path).unwrap();
+    info!("Open Database at path {}", path);
     db.execute_batch(DB_QUERY).unwrap();
     Ok(db)
 }
@@ -48,64 +40,46 @@ pub struct Wgmd {
     //listener: UnixListener,
 }
 
-pub async fn listen(path: &str, db: &Arc<Mutex<Connection>>) -> io::Result<()> {
+pub fn listen(path: &str, db: &Arc<Mutex<Connection>>) -> io::Result<oneshot::Sender<()>> {
     //db.execute_batch(DB_QUERY).unwrap();
+    let (tx, rx) = oneshot::channel();
+
     let listener = setup_socket(path)?;
-    listen_to(listener, db).await;
-    info!("Quitting...");
-    fs::remove_file(SOCKET_PATH)?;
-    Ok(())
+    listen_to(listener, db, rx)?;
+
+    Ok(tx)
 }
 
-async fn listen_to(listener: UnixListener, db: &Arc<Mutex<Connection>>) -> io::Result<()> {
-    //let db_ref = Arc::new(Mutex::new(db));
-    let sigterm = signal(SignalKind::terminate())?;
-    let sigint = signal(SignalKind::interrupt())?;
-    main_loop((sigint, sigterm), &listener, db)
-        .await
-        .unwrap();
-    
-    Ok(())
-}
-
-async fn main_loop(
-    signals: Signals,
-    listener: &UnixListener,
-    db_ref: &Arc<Mutex<Connection>>,
-    //dns_ref: Arc<Mutex<DnsmasqHost>>,
+fn listen_to(
+    listener: UnixListener,
+    db: &Arc<Mutex<Connection>>,
+    mut oshot: oneshot::Receiver<()>,
 ) -> io::Result<()> {
-    let (mut sigint, mut sigterm) = signals;
-    loop {
-        tokio::select! {
-        result = listener.accept() => {
-            let (stream, _) = result?;
-            info!("new socket connection");
+    //let db_ref = Arc::new(Mutex::new(db));
 
-            let db = db_ref.clone();
-            //let dns = dns_ref.clone();
-            tokio::spawn(async move {
-                if let Err(e) = handle_client(stream, db).await {
+    let db = Arc::clone(db);
+    tokio::spawn(async move {
+        loop {
+            if let Ok(s) = oshot.try_recv() {
+                break;
+            }
+
+            if let Ok((stream, _)) = listener.accept().await {
+                info!("new socket connection");
+                if let Err(e) = handle_client(stream, &db).await {
                     error!("{}", e);
                     //eprintln!("{e}")
                 }
-            });
+            }
         }
-        _ = sigterm.recv() => {
-            break;
-        }
-        _ = sigint.recv() => {
-            break;
-        }
+    });
 
-        }
-    }
-    info!("socket connection exit");
     Ok(())
 }
 
 async fn handle_client(
     stream: UnixStream,
-    db: Arc<Mutex<Connection>>,
+    db: &Arc<Mutex<Connection>>,
     //dns: Arc<Mutex<DnsmasqHost>>,
 ) -> std::io::Result<()> {
     let (reader, mut writer) = stream.into_split();

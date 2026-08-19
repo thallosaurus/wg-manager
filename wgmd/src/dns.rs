@@ -133,7 +133,8 @@ impl DnsmasqRuntimeConfig {
         let mut a = Vec::new();
         a.push("-k".into());
         //a.push("--port=6666".into());
-        a.push("--bind-interface".into());
+        a.push("--server=8.8.8.8".into());
+        a.push("--bind-interfaces".into());
         a.push("--leasefile-ro".into());
         a.push("--no-resolv".into());
         a.push(format!("--no-dhcp-interface={}", self.interface).into());
