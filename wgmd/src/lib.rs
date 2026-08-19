@@ -26,6 +26,25 @@ const DB_QUERY: &str = include_str!("../database.sql");
 pub(crate) type Signals = (Signal, Signal);
 pub struct Wgmd;
 
+#[cfg(not(debug_assertions))]
+const SOCKET_PATH: &str = "/var/run/wgmd.sock";
+
+#[cfg(not(debug_assertions))]
+const DB_PATH: &str = "/var/lib/wgmd/manager.db";
+
+#[cfg(debug_assertions)]
+const SOCKET_PATH: &str = "./wgmd.sock";
+
+#[cfg(debug_assertions)]
+const DB_PATH: &str = "./manager.db";
+
+pub fn open_database(path: &str) -> rusqlite::Result<Connection> {
+    let db = Connection::open(DB_PATH).unwrap();
+    info!("Open Database at path {}", DB_PATH);
+    db.execute_batch(DB_QUERY).unwrap();
+    Ok(db)
+}
+
 impl Wgmd {
     pub async fn listen(listener: &UnixListener, db: Connection) -> io::Result<()> {
         db.execute_batch(DB_QUERY).unwrap();

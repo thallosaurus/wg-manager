@@ -1,5 +1,5 @@
 use tokio::net::UnixStream;
-use wgmd::{client::SocketConnection, messages::ExportClientRequest};
+use wgmd::{client::SocketConnection, messages::{AddInterfaceRequest, ExportClientRequest}};
 
 #[tokio::main]
 async fn main() {
