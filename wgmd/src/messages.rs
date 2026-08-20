@@ -12,8 +12,7 @@ use ts_rs::TS;
 use x25519_dalek::{PublicKey, StaticSecret};
 
 use crate::{
-    dns::{DnsmasqHost, insert_dns_root},
-    interfaces::{wg_make_privkey, wg_make_psk, wg_make_pubkey, wg_quick_down, wg_quick_up},
+    dns::{DnsmasqHost, insert_dns_root}
 };
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -649,10 +648,10 @@ fn recreate_dir(path: &str) -> io::Result<()> {
 fn reapply_config(c: &InterfaceConfig) -> io::Result<()> {
     let wg_path = format!("/var/lib/wgmd/configs/{}.conf", c.if_name);
     let dns_path = format!("/var/lib/wgmd/dns/{}.conf", c.if_name);
-    wg_quick_down(&wg_path)?;
+    //wg_quick_down(&wg_path)?;
     //fs::write(&wg_path, c.to_wireguard_config().unwrap())?;
     //fs::write(&dns_path, c.to_dnsmasq_config().unwrap())?;
-    wg_quick_up(&wg_path)?;
+    //wg_quick_up(&wg_path)?;
     Ok(())
 }
 
@@ -661,7 +660,7 @@ mod tests {
     use std::net::Ipv4Addr;
 
     use crate::{
-        interfaces::{wg_make_privkey, wg_make_psk, wg_make_pubkey},
+        //interfaces::{wg_make_privkey, wg_make_psk, wg_make_pubkey},
         messages::{
             AddInterfaceRequest, AddUserRequest, QueryUser, RemoveInterfaceRequest,
             add_user_to_interface, add_user_to_interface_with_keys, delete_interface,

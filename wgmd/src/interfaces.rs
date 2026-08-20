@@ -16,37 +16,7 @@ use serde_json::Value;
 use tracing::debug;
 use x25519_dalek::{PublicKey, StaticSecret};
 
-use crate::messages::{InterfaceConfig, UserConfig, WgmdError};
-
-pub fn wg_make_pubkey(pkey: &Vec<u8>) -> io::Result<Vec<u8>> {
-    run_cmd_stdin("wg", &["pubkey"], Some(pkey))
-}
-
-pub fn wg_make_privkey() -> io::Result<Vec<u8>> {
-    run_cmd_stdin("wg", &["genkey"], None)
-}
-
-pub fn wg_make_psk() -> io::Result<Vec<u8>> {
-    run_cmd_stdin("wg", &["genpsk"], None)
-}
-
-pub fn wg_quick_up(if_name: &str) -> io::Result<()> {
-    run_cmd_stdin("wg-quick", &["up", if_name], None)?;
-    Ok(())
-}
-
-pub fn wg_quick_down(if_name: &str) -> io::Result<()> {
-    run_cmd_stdin("wg-quick", &["down", if_name], None)?;
-    Ok(())
-}
-
-pub fn wg_get_interfaces() -> io::Result<Vec<String>> {
-    //wg show interfaces
-    let output = run_cmd_stdin("wg", &["show", "interfaces"], None)?;
-    let s = String::from_utf8(output).unwrap();
-
-    Ok(s.split(" ").map(|f| f.to_string()).collect())
-}
+use crate::messages::WgmdError;
 
 fn run_cmd_stdin(cmd: &str, args: &[&str], input: Option<&Vec<u8>>) -> io::Result<Vec<u8>> {
     let mut child = Command::new(cmd)
