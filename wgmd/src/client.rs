@@ -70,6 +70,7 @@ impl SocketConnection {
         let mut reader = BufReader::new(stream);
         let mut line = String::new();
         reader.read_line(&mut line).await?;
+        //println!("{}", line);
 
         Ok(serde_json::from_str(&line)?)
     }

@@ -3,6 +3,7 @@ use std::{
     fmt::Write, format, fs, io, net::Ipv4Addr, string::FromUtf8Error, sync::{Arc, Mutex}, writeln,
 };
 
+use defguard_wireguard_rs::host;
 use ipnet::Ipv4Net;
 use rusqlite::Connection;
 use serde::{Deserialize, Serialize};
@@ -12,14 +13,14 @@ use ts_rs::TS;
 use x25519_dalek::{PublicKey, StaticSecret};
 
 use crate::{
-    dns::{DnsmasqHost, insert_dns_root}
+    dns::{DnsmasqHost, insert_dns_root}, interfaces::convert_key
 };
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 //#[ts(export, export_to = "messages.ts")]
 pub struct PrivateUserConfig {
     //name: String,
-    pubkey: String,
+    //pubkey: String,
     host_pubkey: String,
     privkey: String,
     psk: String,
@@ -549,7 +550,7 @@ fn remove_user_from_interface(conf: RemoveUserRequest, db: &Connection) -> Resul
 }
 
 fn query_user(q: QueryUser, db: &Connection) -> Result<PublicUserConfig, WgmdError> {
-    Ok(db.query_one("SELECT u.allowed_ip as address, u.name, u.publicKey as userPubkey, i.endpoint, i.listenport FROM users u LEFT JOIN interfaces i ON u.interface_id = i.id WHERE u.interface_id = ? AND u.id = ?",
+    Ok(db.query_one("SELECT u.allowed_ip as address, u.name, i.endpoint, i.listenport FROM users u LEFT JOIN interfaces i ON u.interface_id = i.id WHERE u.interface_id = ? AND u.id = ?",
     (q.interface_id, q.user_id), |row| {
         let addr: u32 = row.get("address")?;
         Ok(PublicUserConfig {
@@ -561,20 +562,33 @@ fn query_user(q: QueryUser, db: &Connection) -> Result<PublicUserConfig, WgmdErr
 }
 
 fn query_user_private(q: QueryUser, db: &Connection) -> Result<PrivateUserConfig, WgmdError> {
-    Ok(db.query_one("SELECT u.allowed_ip as address, u.privateKey as userPrivatekey, i.pubkey as hostPubkey, u.publicKey as userPubkey, u.psk, i.endpoint, i.netmask, i.listenport, i.netaddress, i.address as dnsaddress FROM users u LEFT JOIN interfaces i ON u.interface_id = i.id WHERE u.interface_id = ? AND u.id = ?",
+    Ok(db.query_one("SELECT u.allowed_ip as address, hex(u.privateKey) as userPrivatekey, hex(u.psk) as psk, hex(i.privatekey) as hostPrivkey, i.endpoint, i.netmask, i.listenport, i.netaddress, i.address as dnsaddress FROM users u LEFT JOIN interfaces i ON u.interface_id = i.id WHERE u.interface_id = ? AND u.id = ?",
     (q.interface_id, q.user_id), |row| {
         let addr: u32 = row.get("address")?;
         let netaddr: u32 = row.get("netaddress")?;
+        let psk: String = row.get("psk")?;
+        let psk = hex::decode(psk).unwrap();
+        let psk: [u8; 32] = psk.try_into().unwrap();
+
+        let privkey: String = row.get("userPrivatekey")?;
+        let privkey = hex::decode(privkey).unwrap();
+        let privkey: [u8; 32] = privkey.try_into().unwrap();
+
+        let host_key: String = row.get("hostPrivkey")?;
+        let host_key = hex::decode(host_key).unwrap();
+        let host_key: [u8; 32] = host_key.try_into().unwrap();
+        let host_pubkey = *PublicKey::from(host_key).as_bytes();
+
         println!("{:?}", row);
         Ok(PrivateUserConfig {
             //id: q.user_id,
             //name: row.get_unwrap("name"),
             netaddress: netaddr as u32,
             address: addr as u32,
-            pubkey: row.get("userPubkey")?,
-            host_pubkey: row.get("hostPubkey")?,
-            psk: row.get("psk")?,
-            privkey: row.get("userPrivatekey")?,
+            //pubkey: row.get("userPubkey")?,
+            host_pubkey: convert_key(host_pubkey),
+            psk: convert_key(psk),
+            privkey: convert_key(privkey),
             endpoint: row.get("endpoint")?,
             listenport: row.get("listenport")?,
             network_mask: row.get("netmask")?,

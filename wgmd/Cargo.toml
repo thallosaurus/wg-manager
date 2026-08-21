@@ -6,7 +6,7 @@ edition = "2024"
 [dependencies]
 base64 = "0.23.1"
 ctrlc = "3.5.2"
-defguard_wireguard_rs = "0.11.1"
+defguard_wireguard_rs = "0.11.2"
 env_logger = "0.11.11"
 hex = "0.4.3"
 ipnet = "2.12.1"

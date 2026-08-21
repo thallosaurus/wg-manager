@@ -309,11 +309,11 @@ dependencies = [
 
 [[package]]
 name = "defguard_wireguard_rs"
-version = "0.11.1"
+version = "0.11.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a09896853b7e5f2302c3e6c6786b3dc0433bc092cc9e3e647812d617d0c2a0ce"
+checksum = "c84cb40db94a3a0d9487dfab10e53c0e2a31801617c3f4d8a3070590503a08dc"
 dependencies = [
- "base64 0.22.1",
+ "base64 0.23.1",
  "defguard_boringtun",
  "ipnet",
  "libc",
@@ -737,32 +737,31 @@ dependencies = [
 
 [[package]]
 name = "netlink-packet-core"
-version = "0.8.2"
+version = "0.9.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b897d7bd4f0af82e68d40d0344cf37e97f9c97ddf74a098de3e4da05e96ca395"
-dependencies = [
- "paste",
-]
+checksum = "2d6e2daf9a8c2e21302714706860a0e6be02e03d17294ecc66b354ea7d4059dd"
 
 [[package]]
 name = "netlink-packet-generic"
-version = "0.4.0"
+version = "0.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2f891b2e0054cac5a684a06628f59568f841c93da4e551239da6e518f539e775"
+checksum = "e609a7be61318181c110df304d54ed3f3e129b9569b8ca16e40a9d644f46930c"
 dependencies = [
  "netlink-packet-core",
+ "zerocopy",
 ]
 
 [[package]]
 name = "netlink-packet-route"
-version = "0.31.0"
+version = "0.33.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e2288fcb784eb3defd5fb16f4c4160d5f477de192eac730f43e1d11c24d9a007"
+checksum = "59d48ffc8b73a506e1ff0878528c72668f2bfbc3d875b6be890a96be5d0d5576"
 dependencies = [
  "bitflags 2.13.1",
  "libc",
  "log",
  "netlink-packet-core",
+ "zerocopy",
 ]
 
 [[package]]
@@ -778,9 +777,9 @@ dependencies = [
 
 [[package]]
 name = "netlink-packet-wireguard"
-version = "0.4.3"
+version = "0.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "81b0e03593f61a7684836d73fdfef3dddae3f2dbc81896159a14bfafdb013567"
+checksum = "1586e7d665d51e10a6e67eaf433beeea784c8dcb96d89c7b9b99444de4221d16"
 dependencies = [
  "bitflags 2.13.1",
  "libc",
@@ -791,9 +790,9 @@ dependencies = [
 
 [[package]]
 name = "netlink-sys"
-version = "0.8.8"
+version = "0.9.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "cd6c30ed10fa69cc491d491b85cc971f6bdeb8e7367b7cde2ee6cc878d583fae"
+checksum = "c99d38e00b420df49e940fe0826e667c3dad82ac68eb4c2bbf754c1c14a83a10"
 dependencies = [
  "bytes",
  "libc",
@@ -876,12 +875,6 @@ dependencies = [
  "smallvec",
  "windows-link",
 ]
-
-[[package]]
-name = "paste"
-version = "1.0.15"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "57c0d7b74b563b49d38dae00a0c37d4d6de9b432382b2892f0574ddcae73fd0a"
 
 [[package]]
 name = "pastey"
@@ -1794,6 +1787,26 @@ dependencies = [
  "getrandom 0.4.3",
  "rand_core 0.10.1",
  "zeroize",
+]
+
+[[package]]
+name = "zerocopy"
+version = "0.8.56"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "556764e583adb45a9f8d413c2a147fa7e8d821e48e12b14fd560b607998b75eb"
+dependencies = [
+ "zerocopy-derive",
+]
+
+[[package]]
+name = "zerocopy-derive"
+version = "0.8.56"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f2ab42fc20575779bd240faa45f94a74256f755c0fa9e89f0ede20d91d0cdfc1"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn 2.0.119",
 ]
 
 [[package]]

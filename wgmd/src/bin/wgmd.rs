@@ -26,8 +26,8 @@ const DB_PATH: &str = "./manager.db";
 
 #[tokio::main]
 async fn main() -> std::io::Result<()> {
-    //init_tracing();
-    env_logger::init();
+    init_tracing();
+    //env_logger::init();
 
     // open database
     let db = Arc::new(Mutex::new(open_database(DB_PATH).unwrap()));

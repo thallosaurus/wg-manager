@@ -4,7 +4,7 @@ let conn = await SocketConnection.connect("./wgmd/wgmd.sock")
 let r = await conn.addInterface({
   if_name: "utun10",
   address: "172.16.128.1",
-  endpoint: "vpn.example.net",
+  endpoint: "lenna.duckdns.org",
   mtu: 1420,
   subnet: 24,
   port: 12346,

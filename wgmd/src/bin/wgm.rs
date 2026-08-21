@@ -1,5 +1,5 @@
 use tokio::net::UnixStream;
-use wgmd::{client::SocketConnection, messages::{AddInterfaceRequest, ExportClientRequest}};
+use wgmd::{client::SocketConnection, messages::{AddInterfaceRequest, ExportClientRequest, WgmdAnswer}};
 
 #[tokio::main]
 async fn main() {
@@ -13,5 +13,7 @@ async fn main() {
         })
         .await
         .unwrap();
-    println!("{:?}", res);
+    if let WgmdAnswer::ClientExport { data } = res {
+        println!("{}", data);
+    }
 }
